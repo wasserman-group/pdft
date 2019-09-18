@@ -4,7 +4,7 @@ A fragment based calculation using density functional theory
 """
 
 # Add imports here
-from .fragment import *
+import pdft
 
 # Handle versioneer
 from ._version import get_versions
