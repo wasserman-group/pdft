@@ -186,7 +186,7 @@ class Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.D, self.energy, self.grid, self.phi = self.scf()
+        self.D, self.energy = self.scf()
 
     def initialize(self):
         """
@@ -275,7 +275,7 @@ class Molecule():
             #Exchange correlation energy/matrix
             self.Vpot.set_D([D])
             self.Vpot.properties()[0].set_pointers(D)
-            ks_e ,Vxc, grid, phi = xc(D, self.Vpot)
+            ks_e ,Vxc = xc(D, self.Vpot)
             Vxc = psi4.core.Matrix.from_array(Vxc)
 
             #add components to matrix
@@ -318,7 +318,7 @@ class Molecule():
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
 
-        return D.np, SCF_E, grid, phi
+        return D.np, SCF_E
 
 
 class Embedding:
