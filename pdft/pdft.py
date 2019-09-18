@@ -150,7 +150,7 @@ def xc(D, Vpot, functional='lda'):
         # Sum back to the correct place
         Varr[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
-    return e_xc, Varr, l_grid, points_func.basis_values()["PHI"]
+    return e_xc, Varr
 
 class Molecule():
     def __init__(self, geometry, basis, method, mints=None, restricted=True):
