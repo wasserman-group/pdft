@@ -258,7 +258,8 @@ class Molecule():
         self.A              = self.form_A()
         self.H              = self.form_H()
         self.D, self.energy = self.scf()
-    
+        
+        
     def initialize(self):
         """
         Initializes functional and V potential objects
@@ -391,7 +392,7 @@ class Molecule():
         #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
-
+        
         return D, SCF_E
 
 
@@ -576,9 +577,6 @@ class U_Molecule():
             print(F'Nuclear Repulsion: {self.Enuc}')
             print(F'Total Energy {SCF_E}')
 
-
-
-
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
@@ -605,8 +603,6 @@ class U_Molecule():
         #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
-
-
 
         return D_a, D_b, SCF_E
     
@@ -680,7 +676,6 @@ class U_Embedding:
             vp.axpy(1.0, delta_vp)
 
         return vp
-
 
 
 class Embedding:
