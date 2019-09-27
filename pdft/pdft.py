@@ -4,7 +4,9 @@ pdft.py
 
 
 import psi4
+import qcelemental as qc
 import numpy as np
+import pandas as pd
 import os
 
 
@@ -257,9 +259,9 @@ class Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.D, self.energy = self.scf()
-        
-        
+
+        self.D, self.energy, self.energies = self.scf()
+
     def initialize(self):
         """
         Initializes functional and V potential objects
@@ -303,7 +305,11 @@ class Molecule():
         A.power(-0.5, 1.e-14)
         return A
 
-    def scf(self, maxiter=30, vp_add=False, vp_matrix=None):
+    def get_plot(self):
+        plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
+        return plot
+
+    def scf(self, maxiter=30, vp_add=False, vp_matrix=None, print_energies=False):
         """
         Performs scf calculation to find energy and density
 
@@ -387,13 +393,31 @@ class Molecule():
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
+            if print_energies is True:
+                print(F'\n')        
+                print('Energy Contributions: ')
+                print('\n')
+                print(F'Core:                  {2.0 * self.H.vector_dot(D)}')
+                print(F'Hartree:              {2.0 * self.jk.J()[0].vector_dot(D)}')
+                print(F'Exchange Correlation:  {ks_e}')
+                print(F'Partition Energy:      {1.0 * vp.vector_dot(D)}')
+                print(F'Nuclear Repulsion:     {self.Enuc}')
+                print(F'Total Energy           {SCF_E}')
+                print(F'\n')
+
+            energies = {   self.geometry.name() : [2.0 * self.H.vector_dot(D), 2.0 * self.jk.J()[0].vector_dot(D), ks_e, self.Enuc, SCF_E]   }
+            ks_index = ["Core", "Hartree", "Exchange Correlation", "Nuclear Repulsion", "Total Energy"]
+            #energies = {"Core": [Core], "Hartree":[(Hartree_a + Hartree_b) * 0.5], "Exchange Correlation": [ks_e], "Nuclear Repulsion": [self.Enuc], "Total Energy": [SCF_E]} 
+            pandas = pd.DataFrame(data = energies, index=ks_index)
+
         #print('\nFinal SCF energy: %.8f hartree' % SCF_E)
         #print(F'Core                 : {2.0 * self.H.vector_dot(D)}')
         #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
-        
-        return D, SCF_E
+
+
+        return D, SCF_E, pandas
 
 
 
@@ -423,7 +447,7 @@ class U_Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.Da, self.Db, self.energy = self.scf()
+        self.Da, self.Db, self.energy, self.energies = self.scf()
     
     def initialize(self):
         """
@@ -468,7 +492,11 @@ class U_Molecule():
         A.power(-0.5, 1.e-14)
         return A
 
-    def scf(self, maxiter=30, vp_add=False, vp_matrix=None):
+    def get_plot(self):
+        plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
+        return plot
+
+    def scf(self, maxiter=30, vp_add=False, vp_matrix=None, print_energies=False):
         """
         Performs scf calculation to find energy and density
 
@@ -491,8 +519,8 @@ class U_Molecule():
             self.initialize()
 
         if vp_add == True:
-            vp_a = vp_matrix
-            vp_b = vp_matrix
+            vp_a = vp_matrix[0]
+            vp_b = vp_matrix[1]
 
         C_a, Cocc_a, D_a, eigs_a = build_orbitals(self.H, self.A, self.nalpha)
         C_b, Cocc_b, D_b, eigs_b = build_orbitals(self.H, self.A, self.nbeta)
@@ -568,15 +596,6 @@ class U_Molecule():
             
             SCF_E += self.Enuc
 
-
-            print('######################################')
-            print(F'Core: {Core}')
-            print(F'Hartree: {(Hartree_a + Hartree_b) * 0.5}')
-            print(F'Exchange Correlation: {ks_e}')
-            print(F'Partition Energy: {Partition}')
-            print(F'Nuclear Repulsion: {self.Enuc}')
-            print(F'Total Energy {SCF_E}')
-
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
@@ -604,7 +623,25 @@ class U_Molecule():
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
 
-        return D_a, D_b, SCF_E
+        if print_energies is True:
+            print(F'\n')        
+            print('Energy Contributions: ')
+            print('\n')
+            print(F'Core:                  {Core}')
+            print(F'Hartree:              {(Hartree_a + Hartree_b) * 0.5}')
+            print(F'Exchange Correlation:  {ks_e}')
+            print(F'Partition Energy:      {Partition}')
+            print(F'Nuclear Repulsion:     {self.Enuc}')
+            print(F'Total Energy           {SCF_E}')
+            print(F'\n')
+
+        energies = {   self.geometry.name() : [Core, (Hartree_a + Hartree_b) * 0.5, ks_e, self.Enuc, SCF_E]   }
+        ks_index = ["Core", "Hartree", "Exchange Correlation", "Nuclear Repulsion", "Total Energy"]
+        #energies = {"Core": [Core], "Hartree":[(Hartree_a + Hartree_b) * 0.5], "Exchange Correlation": [ks_e], "Nuclear Repulsion": [self.Enuc], "Total Energy": [SCF_E]} 
+        pandas = pd.DataFrame(data = energies, index=ks_index)
+
+        return D_a, D_b, SCF_E, pandas
+
     
 
 class U_Embedding:
@@ -617,10 +654,22 @@ class U_Embedding:
         #from mehtods
         self.fragment_densities = self.get_density_sum()
 
+    def get_energies(self):
+        total = []
+        for i in range(len(self.fragments)):
+            total.append(self.fragments[i].energies)
+        total.append(self.molecule.energies)
+        pandas = pd.concat(total,axis=1)
+        return pandas
+
     def get_density_sum(self):
-        sum = self.fragments[0].D.np.copy()
+        sum = self.fragments[0].Da.np.copy()
+
         for i in range(1,len(self.fragments)):
-            sum +=  self.fragments[i].D.np
+            sum +=  self.fragments[i].Da.np
+
+        for i in range(1,len(self.fragments)):
+            sum +=  self.fragments[i].Db.np
         return sum
 
     def find_vp(self, beta, guess=None, maxiter=10, atol=2e-4):
@@ -640,21 +689,27 @@ class U_Embedding:
 
         """
         if guess==None:
-            vp =  psi4.core.Matrix.from_array(np.zeros_like(self.molecule.D.np))
+            vp_a = psi4.core.Matrix.from_array(np.zeros_like(self.molecule.Da.np))
+            vp_b = psi4.core.Matrix.from_array(np.zeros_like(self.molecule.Db.np))
+            vp_total = psi4.core.Matrix.from_array(np.zeros_like(self.molecule.Db.np))
+            vp =  [ vp_a , vp_b ]
         #else:
         #    vp_guess
 
         for scf_step in range(maxiter+1):
 
-            total_densities = np.zeros_like(self.molecule.D.np)
+            total_density_a = np.zeros_like(self.molecule.Da.np)
+            total_density_b = np.zeros_like(self.molecule.Db.np)
             total_energies = 0.0
             density_convergence = 0.0
 
             for i in range(self.nfragments):
 
-                density, energy = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
-                
-                total_densities += density
+                density_a, density_b, energy, _  = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
+
+                total_density_a += density_a.np 
+                total_density_b += density_b.np
+
                 total_energies  += energy
 
             #if np.isclose( total_densities.sum(),self.molecule.D.sum(), atol=1e-5) :
@@ -664,19 +719,26 @@ class U_Embedding:
             #if scf_step == maxiter:
             #    raise Exception("Maximum number of SCF cycles exceeded for vp.")
 
-            print(F'Iteration: {scf_step} Delta_E = {total_energies - self.molecule.energy} Delta_D = {total_densities.sum() - self.molecule.D.np.sum()}')
+            print(F'Iteration: {scf_step} Delta_E = {total_energies - self.molecule.energy} Delta_D = {total_density_a.sum() + total_density_b.sum() - (self.molecule.Da.np.sum() + self.molecule.Db.np.sum())}')
 
-            delta_vp =  beta * (total_densities - self.molecule.D)  
+            delta_vp_a =  beta * (total_density_a - (self.molecule.Da.np))
+            delta_vp_b =  beta * (total_density_b - (self.molecule.Db.np))  
             #S, D_mnQ, S_pmn, Spq = fouroverlap(self.fragments[0].wfn, self.fragments[0].geometry, "STO-3G", self.fragments[0].mints)
             #S_2, d_2, S_pmn_2, Spq_2 = fouroverlap(self.fragments[1].wfn, self.fragments[1].geometry, "STO-3G")
 
             #delta_vp =  psi4.core.Matrix.from_array( np.einsum('ijmn,mn->ij', S, delta_vp))
-            delta_vp = psi4.core.Matrix.from_array(delta_vp)
+            delta_vp_a = psi4.core.Matrix.from_array(delta_vp_a)
+            delta_vp_b = psi4.core.Matrix.from_array(delta_vp_b)
+            
+            vp_a.axpy(1.0, delta_vp_a)
+            vp_b.axpy(1.0, delta_vp_b)
 
-            vp.axpy(1.0, delta_vp)
+            vp_total.axpy(1.0, vp_a)
+            vp_total.axpy(1.0, vp_b)
 
-        return vp
+            
 
+        return vp_a, vp_b, vp_total
 
 class Embedding:
     def __init__(self, fragments, molecule):
@@ -688,6 +750,14 @@ class Embedding:
         #from mehtods
         self.fragment_densities = self.get_density_sum()
 
+    def get_energies(self):
+        total = []
+        for i in range(len(self.fragments)):
+            total.append(self.fragments[i].energies)
+        total.append(self.molecule.energies)
+        pandas = pd.concat(total,axis=1)
+        return pandas
+
     def get_density_sum(self):
         sum = self.fragments[0].D.np.copy()
         for i in range(1,len(self.fragments)):
@@ -723,7 +793,7 @@ class Embedding:
 
             for i in range(self.nfragments):
 
-                density, energy = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
+                density, energy, _ = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
                 
                 total_densities += density
                 total_energies  += energy
