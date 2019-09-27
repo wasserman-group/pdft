@@ -9,10 +9,14 @@ Partition Density Functional Theory
 
 -->
 
-## Overview
+Partition Density Functional Theory
+===================================
 
-A fragment based calculation using density functional theory
+Partition density functional theory (PDFT) is a reformulation of DFT in which the total ground-state energy and density of a full molecular systems are found via self-consistent calculations on isolated fragments. 
 
+### Included Implementations
+
+```
 ### Copyright
 
 Copyright (c) 2019, The Wasserman Group
