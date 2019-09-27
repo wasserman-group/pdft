@@ -4,4 +4,5 @@ API Documentation
 .. autosummary::
    :toctree: autosummary
 
-   pdft.canvas
+   pdft.Molecule
+   pdft.Embedding
