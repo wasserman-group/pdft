@@ -259,8 +259,9 @@ class Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
+
         self.D, self.energy, self.energies = self.scf()
-    
+
     def initialize(self):
         """
         Initializes functional and V potential objects
@@ -414,6 +415,7 @@ class Molecule():
         #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
         #print(F'Exchange Correlation : {ks_e}')
         #print(F'Nuclear Repulsion    : {self.Enuc}')
+
 
         return D, SCF_E, pandas
 
@@ -594,7 +596,6 @@ class U_Molecule():
             
             SCF_E += self.Enuc
 
-
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
@@ -640,6 +641,7 @@ class U_Molecule():
         pandas = pd.DataFrame(data = energies, index=ks_index)
 
         return D_a, D_b, SCF_E, pandas
+
     
 
 class U_Embedding:
@@ -737,7 +739,6 @@ class U_Embedding:
             
 
         return vp_a, vp_b, vp_total
-
 
 class Embedding:
     def __init__(self, fragments, molecule):
