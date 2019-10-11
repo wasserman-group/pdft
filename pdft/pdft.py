@@ -554,6 +554,8 @@ class U_Molecule():
 
             #add components to matrix
             F_a.axpy(1.0, self.jk.J()[0])
+            F_a.axpy(1.0, self.jk.J()[1]) 
+            F_b.axpy(1.0, self.jk.J()[0])
             F_b.axpy(1.0, self.jk.J()[1])
             F_a.axpy(1.0, Vxc_a)
             F_b.axpy(1.0, Vxc_b)
