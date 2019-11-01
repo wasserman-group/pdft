@@ -237,7 +237,7 @@ class Molecule():
         self.basis      = basis
         self.method     = method
         self.restricted = restricted
-        self.Enuc = self.geometry.nuclear_repulsion_energy()
+        self.Enuc       = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
@@ -259,8 +259,7 @@ class Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-
-        self.D, self.energy, self.energies = self.scf()
+        self.C, self.Cocc, self.D, self.energy, self.energies, self.eigenvecs, self.Vks = self.scf()
 
     def initialize(self):
         """
@@ -390,6 +389,13 @@ class Molecule():
             #Diagonalize Fock matrix
             C, Cocc, D, eigs = build_orbitals(F, self.A, self.ndocc)
 
+            #Testing
+            Vks = self.mints.ao_potential()
+            Vks.axpy(2.0, self.jk.J()[0])
+            Vks.axpy(1.0, Vxc)
+            #Testing
+
+
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
@@ -417,7 +423,7 @@ class Molecule():
         #print(F'Nuclear Repulsion    : {self.Enuc}')
 
 
-        return D, SCF_E, pandas
+        return C, Cocc, D,SCF_E, pandas, eigs, Vks
 
 
 
@@ -447,7 +453,7 @@ class U_Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.Da, self.Db, self.energy, self.energies = self.scf()
+        self.Da, self.Db, self.energy, self.energies, self.eigenvecs_a, self.eigenvecs_b, self.Vks_a, self.Vks_b, self.Fa, self.Fb = self.scf()
     
     def initialize(self):
         """
@@ -543,6 +549,7 @@ class U_Molecule():
             #Bring core matrix
             F_a = self.H.clone()
             F_b = self.H.clone()
+ 
 
             #Exchange correlation energy/matrix
             self.Vpot.set_D([D_a,D_b])
@@ -552,15 +559,25 @@ class U_Molecule():
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
 
-            #add components to matrix
             F_a.axpy(1.0, self.jk.J()[0])
             F_a.axpy(1.0, self.jk.J()[1]) 
             F_b.axpy(1.0, self.jk.J()[0])
-            F_b.axpy(1.0, self.jk.J()[1])
+            F_b.axpy(1.0, self.jk.J()[1])                 
             F_a.axpy(1.0, Vxc_a)
             F_b.axpy(1.0, Vxc_b)
             F_a.axpy(1.0, vp_a)
             F_b.axpy(1.0, vp_b)
+
+            Vks_a = self.mints.ao_potential()
+            Vks_a.axpy(0.5, self.jk.J()[0])
+            Vks_a.axpy(0.5, self.jk.J()[1])
+            Vks_a.axpy(1.0, Vxc_a)
+
+            Vks_b = self.mints.ao_potential()
+            Vks_b.axpy(0.5, self.jk.J()[0])
+            Vks_b.axpy(0.5, self.jk.J()[1])
+            Vks_b.axpy(1.0, Vxc_b)
+            
 
             #DIIS
             diisa_e = psi4.core.triplet(F_a, D_a, self.S, False, False, False)
@@ -642,7 +659,7 @@ class U_Molecule():
         #energies = {"Core": [Core], "Hartree":[(Hartree_a + Hartree_b) * 0.5], "Exchange Correlation": [ks_e], "Nuclear Repulsion": [self.Enuc], "Total Energy": [SCF_E]} 
         pandas = pd.DataFrame(data = energies, index=ks_index)
 
-        return D_a, D_b, SCF_E, pandas
+        return D_a, D_b, SCF_E, pandas, eigs_a, eigs_b, Vks_a, Vks_b, F_a, F_b
 
     
 
