@@ -6,7 +6,6 @@ pdft.py
 import psi4
 import qcelemental as qc
 import numpy as np
-import pandas as pd
 import os
 
 
@@ -259,7 +258,16 @@ class Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.C, self.Cocc, self.D, self.energy, self.energies, self.eigenvecs, self.Vks = self.scf()
+
+        #From SCF
+        self.C              = None
+        self.Cocc           = None
+        self.D              = None
+        self.energy         = None
+        self.energetics     = None
+        self.eigs           = None
+        self.vks            = None
+
 
     def initialize(self):
         """
@@ -399,31 +407,17 @@ class Molecule():
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
-            if print_energies is True:
-                print(F'\n')        
-                print('Energy Contributions: ')
-                print('\n')
-                print(F'Core:                  {2.0 * self.H.vector_dot(D)}')
-                print(F'Hartree:              {2.0 * self.jk.J()[0].vector_dot(D)}')
-                print(F'Exchange Correlation:  {ks_e}')
-                print(F'Partition Energy:      {1.0 * vp.vector_dot(D)}')
-                print(F'Nuclear Repulsion:     {self.Enuc}')
-                print(F'Total Energy           {SCF_E}')
-                print(F'\n')
+        energetics = {"Core": 2.0 * self.H.vector_dot(D), "Hartree": 2.0 * self.jk.J()[0].vector_dot(D), "Exchange-Correlation":ks_e, "Nuclear": self.Enuc, "Total": SCF_E }
 
-            energies = {   self.geometry.name() : [2.0 * self.H.vector_dot(D), 2.0 * self.jk.J()[0].vector_dot(D), ks_e, self.Enuc, SCF_E]   }
-            ks_index = ["Core", "Hartree", "Exchange Correlation", "Nuclear Repulsion", "Total Energy"]
-            #energies = {"Core": [Core], "Hartree":[(Hartree_a + Hartree_b) * 0.5], "Exchange Correlation": [ks_e], "Nuclear Repulsion": [self.Enuc], "Total Energy": [SCF_E]} 
-            pandas = pd.DataFrame(data = energies, index=ks_index)
+        self.C              = C
+        self.Cocc           = Cocc
+        self.D              = D
+        self.energy         = SCF_E
+        self.energetics     = energetics
+        self.eigs           = eigs
+        self.vks            = Vks
 
-        #print('\nFinal SCF energy: %.8f hartree' % SCF_E)
-        #print(F'Core                 : {2.0 * self.H.vector_dot(D)}')
-        #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
-        #print(F'Exchange Correlation : {ks_e}')
-        #print(F'Nuclear Repulsion    : {self.Enuc}')
-
-
-        return C, Cocc, D,SCF_E, pandas, eigs, Vks
+        return
 
 
 
@@ -453,7 +447,18 @@ class U_Molecule():
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
         self.H              = self.form_H()
-        self.Da, self.Db, self.energy, self.energies, self.eigenvecs_a, self.eigenvecs_b, self.Vks_a, self.Vks_b, self.Fa, self.Fb = self.scf()
+
+        #From SCF calculation
+        self.Da             = None
+        self.Db             = None
+        self.energy         = None
+        self.energetics     = None
+        self.eig_a          = None
+        self.eig_b          = None
+        self.vks_a          = None
+        self.vks_b          = None
+        self.Fa             = None
+        self.Fb             = None
     
     def initialize(self):
         """
@@ -602,17 +607,7 @@ class U_Molecule():
             SCF_E = Core
             SCF_E += (Hartree_a + Hartree_b) * 0.5
             SCF_E += Partition
-            SCF_E += Exchange_Correlation
-
-            # SCF_E  = 1.0 * self.H.vector_dot(D_a)
-            # SCF_E  = 1.0 * self.H.vector_dot(D_b)
-
-            # SCF_E += 1.0 * self.jk.J()[0].vector_dot(D_a)
-            # SCF_E += 1.0 * self.jk.J()[1].vector_dot(D_b)
-
-            # SCF_E += 1.0 * vp_a.vector_dot(D_a)
-            # SCF_E += 1.0 * vp_a.vector_dot(D_b)
-            
+            SCF_E += Exchange_Correlation            
             SCF_E += self.Enuc
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
@@ -636,30 +631,20 @@ class U_Molecule():
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
-        #print('\nFinal SCF energy: %.8f hartree' % SCF_E)
-        #print(F'Core                 : {2.0 * self.H.vector_dot(D)}')
-        #print(F'Hartree              : {2.0 * self.jk.J()[0].vector_dot(D)}')
-        #print(F'Exchange Correlation : {ks_e}')
-        #print(F'Nuclear Repulsion    : {self.Enuc}')
+        energetics = {"Core":Core, "Hartree":(Hartree_a+Hartree_b)*0.5, "Exchange_Correlation":ks_e, "Nuclear":self.Enuc, "Total Energy":SCF_E}
 
-        if print_energies is True:
-            print(F'\n')        
-            print('Energy Contributions: ')
-            print('\n')
-            print(F'Core:                  {Core}')
-            print(F'Hartree:              {(Hartree_a + Hartree_b) * 0.5}')
-            print(F'Exchange Correlation:  {ks_e}')
-            print(F'Partition Energy:      {Partition}')
-            print(F'Nuclear Repulsion:     {self.Enuc}')
-            print(F'Total Energy           {SCF_E}')
-            print(F'\n')
+        self.Da             = D_a
+        self.Db             = D_b
+        self.energy         = SCF_E
+        self.energetics     = energetics
+        self.eig_a          = eigs_a
+        self.eig_b          = eigs_b
+        self.vks_a          = Vks_a
+        self.vks_b          = Vks_b
+        self.Fa             = F_a
+        self.Fb             = F_b
 
-        energies = {   self.geometry.name() : [Core, (Hartree_a + Hartree_b) * 0.5, ks_e, self.Enuc, SCF_E]   }
-        ks_index = ["Core", "Hartree", "Exchange Correlation", "Nuclear Repulsion", "Total Energy"]
-        #energies = {"Core": [Core], "Hartree":[(Hartree_a + Hartree_b) * 0.5], "Exchange Correlation": [ks_e], "Nuclear Repulsion": [self.Enuc], "Total Energy": [SCF_E]} 
-        pandas = pd.DataFrame(data = energies, index=ks_index)
-
-        return D_a, D_b, SCF_E, pandas, eigs_a, eigs_b, Vks_a, Vks_b, F_a, F_b
+        return
 
     
 
