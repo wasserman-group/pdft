@@ -1,4 +1,4 @@
-Partition Density Functional Theory
+PDFT (Partition Density Functional Theory)
 ==============================
 <!--
 
@@ -8,10 +8,15 @@ Partition Density Functional Theory
 [![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory/branch/master)
 
 -->
+PDFT is designed for calculating the ground-state properties of a full molecular system via self-consistent calculations on isolated fragments. 
 
-## Overview
+### Requirements:
+PDFT works as an interface to Psi4. In order to use PDFT, Psi4 must be installed: https://github.com/psi4/psi4
 
-A fragment based calculation using density functional theory
+It is also a good idea to become familiarized with their code. Great examples are found here: https://github.com/psi4/psi4numpy
+
+
+
 
 ### Copyright
 
