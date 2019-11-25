@@ -264,6 +264,7 @@ class Molecule():
         self.Cocc           = None
         self.D              = None
         self.energy         = None
+        self.frag_energy    = None
         self.energetics     = None
         self.eigs           = None
         self.vks            = None
@@ -381,7 +382,7 @@ class Molecule():
             SCF_E += 2.0 * self.jk.J()[0].vector_dot(D)
             SCF_E += ks_e
             SCF_E += self.Enuc
-            SCF_E += 1.0 * vp.vector_dot(D)
+            SCF_E += 2.0 * vp.vector_dot(D)
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
@@ -413,6 +414,7 @@ class Molecule():
         self.Cocc           = Cocc
         self.D              = D
         self.energy         = SCF_E
+        self.frag_energy    = SCF_E - 2.0 * vp.vector_dot(D) 
         self.energetics     = energetics
         self.eigs           = eigs
         self.vks            = Vks
@@ -452,6 +454,7 @@ class U_Molecule():
         self.Da             = None
         self.Db             = None
         self.energy         = None
+        self.frag_energy    = None
         self.energetics     = None
         self.eig_a          = None
         self.eig_b          = None
@@ -601,7 +604,7 @@ class U_Molecule():
             Core = 1.0 * self.H.vector_dot(D_a) + 1.0 * self.H.vector_dot(D_b)
             Hartree_a = 1.0 * self.jk.J()[0].vector_dot(D_a) + self.jk.J()[1].vector_dot(D_a)
             Hartree_b = 1.0 * self.jk.J()[0].vector_dot(D_b) + self.jk.J()[1].vector_dot(D_b)
-            Partition = 1.0 * vp_a.vector_dot(D_a) + vp_a.vector_dot(D_b)
+            Partition = 1.0 * vp_a.vector_dot(D_a) + vp_b.vector_dot(D_b)
             Exchange_Correlation = ks_e
 
             SCF_E = Core
@@ -636,6 +639,7 @@ class U_Molecule():
         self.Da             = D_a
         self.Db             = D_b
         self.energy         = SCF_E
+        self.frag_energy    = SCF_E - Partition
         self.energetics     = energetics
         self.eig_a          = eigs_a
         self.eig_b          = eigs_b
@@ -645,8 +649,6 @@ class U_Molecule():
         self.Fb             = F_b
 
         return
-
-    
 
 class U_Embedding:
     def __init__(self, fragments, molecule):
@@ -709,12 +711,12 @@ class U_Embedding:
 
             for i in range(self.nfragments):
 
-                density_a, density_b, energy, _  = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
+                self.fragments[i].scf(vp_add=True, vp_matrix=vp)
 
-                total_density_a += density_a.np 
-                total_density_b += density_b.np
+                total_density_a += self.fragments[i].Da.np 
+                total_density_b += self.fragments[i].Db.np 
 
-                total_energies  += energy
+                total_energies  += self.fragments[i].frag_energy
 
             #if np.isclose( total_densities.sum(),self.molecule.D.sum(), atol=1e-5) :
             if np.isclose(total_energies, self.molecule.energy, atol):
@@ -739,8 +741,6 @@ class U_Embedding:
 
             vp_total.axpy(1.0, vp_a)
             vp_total.axpy(1.0, vp_b)
-
-            
 
         return vp_a, vp_b, vp_total
 
@@ -797,10 +797,10 @@ class Embedding:
 
             for i in range(self.nfragments):
 
-                density, energy, _ = self.fragments[i].scf(vp_add=True, vp_matrix=vp)
+                self.fragments[i].scf(vp_add=True, vp_matrix=vp)
                 
-                total_densities += density
-                total_energies  += energy
+                total_densities += self.fragments[i].D.np 
+                total_energies  += self.fragments[i].frag_energy
 
             #if np.isclose( total_densities.sum(),self.molecule.D.sum(), atol=1e-5) :
             if np.isclose(total_energies, self.molecule.energy, atol):
