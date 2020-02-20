@@ -88,7 +88,8 @@ def basis_to_grid(mol, mat, blocks=True):
     full_w = np.array(fullw)
         
     if blocks is True:
-        return frag_mat, frag_phi, frag_w, frag_pos
+        #return frag_mat, frag_phi, frag_w, frag_pos
+        return frag_mat, [frag_x, frag_y, frag_z, frag_w]
     if blocks is False: 
         return full_mat, [x,y,z,full_w]
 
