@@ -9,6 +9,90 @@ import numpy as np
 import os
 
 
+def basis_to_grid(mol, mat, blocks=True):
+    """
+    Turns a matrix expressed in the basis of mol to its grid representation
+
+    Parameters
+    ----------
+    mol: Pdft.Molecule
+
+    mat: Numpy array
+        Matrix representation in the basis of mol
+
+
+    Returns
+    -------
+    frag_phi = List
+        Phi separated in blocks
+    
+    frag_pos = List
+        Positions separated in blocks
+
+    full_mat = Numpy array
+        Grid representation of mat on the grid. Order not explicit. 
+    """
+    nbf = mol.nbf
+    Vpot = mol.Vpot
+     
+    points_func = Vpot.properties()[0]
+    superfunc = Vpot.functional()
+
+    full_phi, fullx, fully, fullz, fullw, full_mat = [], [], [], [], [], []
+    frag_phi, frag_w, frag_mat, frag_pos = [],[],[],[]
+
+    # Loop Over Blocks
+    for l_block in range(Vpot.nblocks()):
+
+        # Obtain general grid information
+        l_grid = Vpot.get_block(l_block)
+
+        l_w = np.array(l_grid.w())
+        frag_w.append(l_w)
+        l_x = np.array(l_grid.x())
+        l_y = np.array(l_grid.y())
+        l_z = np.array(l_grid.z())
+
+        for i in range(len(l_x)):
+            fullx.append(l_x[i])
+            fully.append(l_y[i])
+            fullz.append(l_z[i])
+            fullw.append(l_w[i])
+
+        l_npoints = l_w.shape[0]
+        points_func.compute_points(l_grid)
+
+        # Recompute to l_grid
+        lpos = np.array(l_grid.functions_local_to_global())
+        frag_pos.append(lpos)
+        points_func.compute_points(l_grid)
+        nfunctions = lpos.shape[0]
+
+        phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
+        frag_phi.append(phi)
+        
+        l_mat = mat[(lpos[:, None], lpos)]
+        
+        mat_r = np.einsum('pm,mn,pn->p', phi, l_mat, phi, optimize=True)
+        frag_mat.append(mat_r[:l_npoints])
+
+        for i in range(len(mat_r)):
+            full_mat.append(mat_r[i])
+            
+        for i in range(len(phi)):
+            full_phi.append(phi[i])
+            
+    x, y, z= np.array(fullx), np.array(fully), np.array(fullz)
+    full_mat = np.array(full_mat)
+    full_phi = np.array(full_phi)
+    full_w = np.array(fullw)
+        
+    if blocks is True:
+        #return frag_mat, frag_phi, frag_w, frag_pos
+        return frag_mat, [frag_x, frag_y, frag_z, frag_w]
+    if blocks is False: 
+        return full_mat, [x,y,z,full_w]
+
 def build_orbitals(diag, A, ndocc):
     """
     Diagonalizes matrix
