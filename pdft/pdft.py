@@ -340,11 +340,18 @@ class Molecule():
         self.C              = None
         self.Cocc           = None
         self.D              = None
+        self.D_r            = None
+        self.D0             = None
         self.energy         = None
         self.frag_energy    = None
         self.energetics     = None
         self.eigs           = None
         self.vks            = None
+        self.orbitals       = None
+        self.orbitals_r     = None
+
+        #For basis/grid
+        self.grid           = None
 
 
     def initialize(self):
@@ -389,6 +396,23 @@ class Molecule():
         A = self.mints.ao_overlap()
         A.power(-0.5, 1.e-14)
         return A
+
+    def get_orbitals(self):
+        """
+        Turns the C matrix into a list of matrices with each orbitals
+        """
+        orbitals = []
+        orbitals_r = []
+        nbf = self.nbf
+        for orb_i in range(nbf):
+            orbital = np.einsum('p,q->pq', self.C.np[:,orb_i], self.C.np[:,orb_i])
+            orbital_r = basis_to_grid(self, orbital)
+            orbitals.append(orbital)
+            orbitals_r.append(orbital_r)
+
+        self.orbitals = orbitals
+        self.orbitals_r = orbitals_r
+
 
     def get_plot(self):
         plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
@@ -495,6 +519,12 @@ class Molecule():
         self.energetics     = energetics
         self.eigs           = eigs
         self.vks            = Vks
+
+        self.get_orbitals()
+        self.D_r, _, _, _ = basis_to_grid(self, self.D.np)
+
+        if vp_matrix == None:
+            self.D_0 = D 
 
         return
 
