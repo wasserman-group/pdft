@@ -38,8 +38,8 @@ def basis_to_grid(mol, mat, blocks=True):
     points_func = Vpot.properties()[0]
     superfunc = Vpot.functional()
 
-    full_phi, fullx, fully, fullz, fullw, full_mat = [], [], [], [], [], []
-    frag_phi, frag_w, frag_mat, frag_pos = [],[],[],[]
+    fullx, fully, fullz, fullw, full_mat = [], [], [], [], []
+    frag_w, frag_mat, frag_pos = [],[],[]
 
     # Loop Over Blocks
     for l_block in range(Vpot.nblocks()):
@@ -69,26 +69,18 @@ def basis_to_grid(mol, mat, blocks=True):
         nfunctions = lpos.shape[0]
 
         phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
-        frag_phi.append(phi)
-        
         l_mat = mat[(lpos[:, None], lpos)]
-        
         mat_r = np.einsum('pm,mn,pn->p', phi, l_mat, phi, optimize=True)
         frag_mat.append(mat_r[:l_npoints])
 
         for i in range(len(mat_r)):
             full_mat.append(mat_r[i])
             
-        for i in range(len(phi)):
-            full_phi.append(phi[i])
-            
     x, y, z= np.array(fullx), np.array(fully), np.array(fullz)
     full_mat = np.array(full_mat)
-    full_phi = np.array(full_phi)
     full_w = np.array(fullw)
         
     if blocks is True:
-        #return frag_mat, frag_phi, frag_w, frag_pos
         return frag_mat, [frag_x, frag_y, frag_z, frag_w]
     if blocks is False: 
         return full_mat, [x,y,z,full_w]
@@ -517,9 +509,9 @@ class Molecule():
         self.energetics     = energetics
         self.eigs           = eigs
         self.vks            = Vks
+        self.D_r, self.grid = basis_to_grid(self, self.D.np)
 
         self.get_orbitals()
-        self.D_r, _, _, _ = basis_to_grid(self, self.D.np)
 
         if vp_matrix == None:
             self.D_0 = D 
