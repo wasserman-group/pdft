@@ -167,7 +167,6 @@ def fouroverlap(wfn,geometry,basis, mints):
         S_densityfitting = np.einsum('Pmn,PQ,Qrs->mnrs', S_Pmn, S_PQinv, S_Pmn, optimize=True)
         return S_densityfitting, d_mnQ, S_Pmn, S_PQ
 
-
 def xc(D, Vpot, functional='lda'):
     """
     Calculates the exchange correlation energy and exchange correlation
@@ -237,7 +236,6 @@ def xc(D, Vpot, functional='lda'):
         Varr[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
     return e_xc, Varr
-
 
 def U_xc(D_a, D_b, Vpot, functional='lda'):
     """
@@ -314,7 +312,7 @@ def U_xc(D_a, D_b, Vpot, functional='lda'):
     return e_xc, V_a,  V_b
 
 class Molecule():
-    def __init__(self, geometry, basis, method, mints=None, jk=None, restricted=True):
+    def __init__(self, geometry, basis, method, mints=None, jk=None):
         #basics
         self.geometry   = geometry
         self.basis      = basis
@@ -326,12 +324,7 @@ class Molecule():
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
         self.functional = psi4.driver.dft.build_superfunctional(method, restricted=self.restricted)[0]
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
-
-        if restricted == True:
-            resctricted_label = "RV"
-        elif restricted == False:
-            restricted_label  = "UV"
-        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, resctricted_label)
+        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
