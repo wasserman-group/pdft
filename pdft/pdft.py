@@ -378,7 +378,7 @@ class Molecule():
 
         return H
 
-    def form_JK(self, K=False):
+    def form_JK(self, K=True):
         """
         Constructs a psi4 JK object from input basis
         """
@@ -437,13 +437,11 @@ class Molecule():
         if vp_add == False:
             vp = psi4.core.Matrix(self.nbf,self.nbf)
             self.initialize()
+            C, Cocc, D, eigs = build_orbitals(self.H, self.A, self.ndocc)
 
         if vp_add == True:
             vp = vp_matrix
-
-
-
-        C, Cocc, D, eigs = build_orbitals(self.H, self.A, self.ndocc)
+            C, Cocc, D, eigs = self.C, self.Cocc, self.D, self.eigs
 
         diis_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest") 
 
