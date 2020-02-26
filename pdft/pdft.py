@@ -1012,10 +1012,32 @@ class U_Embedding:
         #basics
         self.fragments = fragments
         self.nfragments = len(fragments)
-        self.molecule = molecule
+        self.molecule = molecule  # The entire system.
 
-        #from mehtods
-        self.fragment_densities = self.get_density_sum()
+        # from mehtods, np array
+        self.fragments_Da = None
+        self.fragments_Db = None
+
+        # vp
+        self.vp_fock = None
+        self.vp      = None  # Real function on basis
+
+        self.four_overlap = None
+        self.three_overlap = None
+        self.twogradtwo = None
+
+        # convergence
+        self.drho_conv = []
+        self.ep_conv = []
+        self.lagrange = []
+
+        # Regularization Constant
+        self.regul_const = 0.0
+
+        # nad parts of vp with local-Q
+        self.vp_ext_nad = None
+        self.vp_Hext_nad = None
+        self.vp_xc_nad = None
 
     # def get_energies(self):
     #     total = []
@@ -1026,14 +1048,17 @@ class U_Embedding:
     #     return pandas
 
     def get_density_sum(self):
-        sum = self.fragments[0].Da.np.copy()
+        sum_a = self.fragments[0].Da.np.copy() * self.fragments[0].omega
+        sum_b = self.fragments[0].Db.np.copy() * self.fragments[0].omega
 
-        for i in range(1,len(self.fragments)):
-            sum +=  self.fragments[i].Da.np
+        for i in range(1, len(self.fragments)):
 
-        for i in range(1,len(self.fragments)):
-            sum +=  self.fragments[i].Db.np
-        return sum
+            sum_a += self.fragments[i].Da.np * self.fragments[i].omega
+            sum_b += self.fragments[i].Db.np * self.fragments[i].omega
+
+        self.fragments_Da = sum_a
+        self.fragments_Db = sum_b
+        return
 
     def find_vp(self, beta, guess=None, maxiter=10, atol=2e-4):
         """
