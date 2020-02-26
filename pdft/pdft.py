@@ -118,6 +118,48 @@ def matrix_basis_to_grid(mol, mat, blocks=False):
     #     return full_mat, [x,y,z,full_w]
     return full_mat, [x,y,z,full_w]
 
+def grid_to_matrix_basis(self, value, w=None):
+    """
+    For any function on integration grid points, get the coefficients on the basis set.
+    THE SOLUTION IS NOT UNIQUE. THIS WILL RETURN A SOLUTION BY np.linalg.lstsq.
+    np.linalg.lstsq MIGHT TAKES A LONG TIME.
+    value: array of values on points
+    One should use the same wfn for all the fragments and the entire systems since different geometry will
+    give different arrangement of xyzw.
+    w: how many points to use for fitting. Default as None: use them all. If w, ROUGHLY w*nbf. w should always be greater than 1.
+    :return: The value of f(r) on grid points.
+    """
+    vpot = self.Vpot
+    points_func = vpot.properties()[0]
+    nbf = self.nbf
+    if w is not None:
+        assert w>1, "w has to be greater than 1 !"
+        w = int(w*nbf) + 1
+    else:
+        w = value.shape[0]
+    basis_grid_matrix = np.empty((0, nbf ** 2))
+    for b in range(vpot.nblocks()):
+        # Obtain block information
+        block = vpot.get_block(b)
+        points_func.compute_points(block)
+        npoints = block.npoints()
+        lpos = np.array(block.functions_local_to_global())
+        # Compute phi!
+        phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+        appended = np.zeros((npoints, nbf ** 2))
+        for i in range(0, npoints):
+            appendelements = np.zeros((1, nbf))
+            appendelements[0, lpos] = phi[i, :]
+            appended[i, :] = np.squeeze((appendelements.T.dot(appendelements)).reshape(nbf ** 2, 1))
+        appended = appended.reshape(npoints, nbf ** 2)
+        basis_grid_matrix = np.append(basis_grid_matrix, appended, axis=0)
+        if basis_grid_matrix.shape[0] >= w:
+            break
+    Da = np.linalg.lstsq(basis_grid_matrix, value[:basis_grid_matrix.shape[0]], rcond=None)
+    Da = Da[0].reshape(nbf, nbf)
+    Da = 0.5 * (Da + Da.T)
+    return Da
+
 def build_orbitals(diag, A, ndocc):
     """
     Diagonalizes matrix
@@ -788,6 +830,42 @@ class U_Molecule():
 
         vext = -vext
         return vext
+
+    def grid_to_fock(self, f):
+        """
+        Fock matrix integral on the grid.
+        Totally analog to function f on matrix basis einsum(four_overlap, f)
+        or function g on matrix basis einsum(three_overlap, g).
+        :param f: function values on grid. np array
+        :return: V: f_fock matrix
+        """
+
+        V = np.zeros_like(self.Da.np)
+        points_func = self.Vpot.properties()[0]
+
+        i = 0
+        # Loop over the blocks
+        for b in range(self.Vpot.nblocks()):
+            # Obtain block information
+            block = self.Vpot.get_block(b)
+            points_func.compute_points(block)
+            npoints = block.npoints()
+            lpos = np.array(block.functions_local_to_global())
+
+            # Obtain the grid weight
+            w = np.array(block.w())
+
+            # Compute phi!
+            phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+
+            Vtmp = np.einsum('pb,p,p,pa->ab', phi, f[i:i+npoints], w, phi, optimize=True)
+
+            # Add the temporary back to the larger array by indexing, ensure it is symmetric
+            V[(lpos[:, None], lpos)] += 0.5 * (Vtmp + Vtmp.T)
+
+            i += npoints
+        assert i == f.shape[0], "Did not run through all the points. %i %i" %(i, f.shape[0])
+        return V
 
     def scf(self, maxiter=30, vp_add=False, vp_matrix=None, print_energies=False):
         """
