@@ -7,6 +7,39 @@ import psi4
 import qcelemental as qc
 import numpy as np
 
+def array_basis_to_grid(self, bu_a, bu_b=None, vpot=None):
+    """
+    For any function on double ao basis: f(r) = bu*phi_u(r) e.g. the density.
+    If Duv_b is not None, it will take Duv + Duv_b.
+    One should use the same wfn for all the fragments and the entire systems since different geometry will
+    give different arrangement of xyzw.
+    :return: The value of f(r) on grid points.
+    """
+    if vpot is None:
+        vpot = self.Vpot
+    points_func = vpot.properties()[0]
+    f_grid = np.array([])
+    # Loop over the blocks
+    for b in range(vpot.nblocks()):
+        # Obtain block information
+        block = vpot.get_block(b)
+        points_func.compute_points(block)
+        npoints = block.npoints()
+        lpos = np.array(block.functions_local_to_global())
+
+        # Compute phi!
+        phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+
+        # Build a local slice of D
+        if bu_b is None:
+            lD = bu_a[lpos]
+        else:
+            lD = bu_a[lpos] + bu_b[lpos]
+
+        # Copmute rho
+        f_grid = np.append(f_grid, np.einsum('pm,m->p', phi, lD))
+    return f_grid
+
 def matrix_basis_to_grid(mol, mat, blocks=False):
     """
     Turns a matrix expressed in the basis of mol to its grid representation
