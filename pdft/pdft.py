@@ -1,10 +1,11 @@
 """
 pdft.py
 """
+
+
 import psi4
 import qcelemental as qc
 import numpy as np
-import matplotlib.pyplot as plt
 
 def array_basis_to_grid(self, bu_a, bu_b=None, vpot=None):
     """
@@ -472,7 +473,7 @@ class Molecule():
         nbf = self.nbf
         for orb_i in range(nbf):
             orbital = np.einsum('p,q->pq', self.C.np[:,orb_i], self.C.np[:,orb_i])
-            orbital_r = matrix_basis_to_grid(self, orbital)
+            orbital_r = basis_to_grid(self, orbital)
             orbitals.append(orbital)
             orbitals_r.append(orbital_r)
 
@@ -583,7 +584,7 @@ class Molecule():
         self.energetics     = energetics
         self.eigs           = eigs
         self.vks            = Vks
-        self.D_r, self.grid = matrix_basis_to_grid(self, self.D.np)
+        self.D_r, self.grid = basis_to_grid(self, self.D.np)
 
         self.get_orbitals()
 
@@ -1110,18 +1111,18 @@ class Embedding:
         #from mehtods
         self.fragment_densities = self.get_density_sum()
 
-    # def get_energies(self):
-    #     total = []
-    #     for i in range(len(self.fragments)):
-    #         total.append(self.fragments[i].energies)
-    #     total.append(self.molecule.energies)
-    #     pandas = pd.concat(total,axis=1)
-    #     return pandas
+    def get_energies(self):
+        total = []
+        for i in range(len(self.fragments)):
+            total.append(self.fragments[i].energies)
+        total.append(self.molecule.energies)
+        pandas = pd.concat(total,axis=1)
+        return pandas
 
     def get_density_sum(self):
         sum = self.fragments[0].D.np.copy()
         for i in range(1,len(self.fragments)):
-            sum += self.fragments[i].D.np
+            sum +=  self.fragments[i].D.np
         return sum
 
     def find_vp(self, beta, guess=None, maxiter=10, atol=2e-4):
@@ -1177,36 +1178,3 @@ class Embedding:
             vp.axpy(1.0, delta_vp)
 
         return vp
-
-
-def plot1d_x(data, Vpot, dimmer_length=None, title=None, ax= None):
-    """
-    Plot the given function (on the grid) on x axis.
-    I found this really helpful for diatoms.
-
-    :param data: Any f(r) on grid
-    :param ax: Using ax created outside this function to have a better control.
-
-    """
-    x, y, z, w = Vpot.get_np_xyzw()
-    # filter to get points on z axis
-    mask = np.isclose(abs(y), 0, atol=1E-11)
-    mask2 = np.isclose(abs(z), 0, atol=1E-11)
-    order = np.argsort(x[mask & mask2])
-    if ax is None:
-        f1 = plt.figure(figsize=(16, 12), dpi=160)
-        # f1 = plt.figure()
-        plt.plot(x[mask & mask2][order], data[mask & mask2][order])
-    else:
-        ax.plot(x[mask & mask2][order], data[mask & mask2][order])
-    if dimmer_length is None:
-        plt.axvline(x=dimmer_length/2.0)
-        plt.axvline(x=-dimmer_length/2.0)
-    if title is not None:
-        if ax is None:
-            plt.title(title)
-        else:
-            # f1 = plt.figure(num=fignum, figsize=(16, 12), dpi=160)
-            ax.set_title(title)
-    if ax is None:
-        plt.show()
