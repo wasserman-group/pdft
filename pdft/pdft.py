@@ -752,6 +752,43 @@ class U_Molecule():
 
         return esp
 
+    def vext_on_grid(self, grid=None, Vpot=None):
+        """
+        The value of v_ext(r) on grid points.
+        :param grid: N*3 np.array. If None, calculate the grid.
+        :param Vpot: for calculating grid. Will be ignored if grid is given.
+        :return:
+        """
+        natom = self.wfn.molecule().natom()
+        nuclear_xyz = self.wfn.molecule().full_geometry().np
+
+        Z = np.zeros(natom)
+        # index list of real atoms. To filter out ghosts.
+        zidx = []
+        for i in range(natom):
+            Z[i] = self.wfn.molecule().Z(i)
+            if Z[i] != 0:
+                zidx.append(i)
+
+        if grid is None:
+            if Vpot is None:
+                grid = np.array(self.Vpot.get_np_xyzw()[:-1]).T
+                grid = psi4.core.Matrix.from_array(grid)
+                assert grid.shape[1] == 3
+            else:
+                grid = np.array(Vpot.get_np_xyzw()[:-1]).T
+                grid = psi4.core.Matrix.from_array(grid)
+                assert grid.shape[1] == 3
+        vext = np.zeros(grid.shape[0])
+        # Go through all real atoms
+        for i in range(len(zidx)):
+            R = np.sqrt(np.sum((grid - nuclear_xyz[zidx[i], :])**2, axis=1))
+            vext += Z[zidx[i]]/R
+            vext[R < 1e-15] = 0
+
+        vext = -vext
+        return vext
+
     def scf(self, maxiter=30, vp_add=False, vp_matrix=None, print_energies=False):
         """
         Performs scf calculation to find energy and density
