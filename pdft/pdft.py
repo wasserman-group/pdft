@@ -6,10 +6,8 @@ pdft.py
 import psi4
 import qcelemental as qc
 import numpy as np
-import os
 
-
-def basis_to_grid(mol, mat, blocks=True):
+def matrix_basis_to_grid(mol, mat, blocks=False):
     """
     Turns a matrix expressed in the basis of mol to its grid representation
 
@@ -79,11 +77,13 @@ def basis_to_grid(mol, mat, blocks=True):
     x, y, z= np.array(fullx), np.array(fully), np.array(fullz)
     full_mat = np.array(full_mat)
     full_w = np.array(fullw)
-        
-    if blocks is True:
-        return frag_mat, [frag_x, frag_y, frag_z, frag_w]
-    if blocks is False: 
-        return full_mat, [x,y,z,full_w]
+
+    # A bug here.
+    # if blocks is True:
+    #     return frag_mat, [frag_x, frag_y, frag_z, frag_w]
+    # if blocks is False:
+    #     return full_mat, [x,y,z,full_w]
+    return full_mat, [x,y,z,full_w]
 
 def build_orbitals(diag, A, ndocc):
     """
@@ -309,7 +309,7 @@ class Molecule():
         self.geometry   = geometry
         self.basis      = basis
         self.method     = method
-        self.restricted = restricted
+        self.restricted = False
         self.Enuc       = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
@@ -521,7 +521,19 @@ class Molecule():
 
 
 class U_Molecule():
-    def __init__(self, geometry, basis, method, mints=None, jk=None):
+    def __init__(self, geometry, basis, method, omega=1, mints=None, jk=None):
+        """
+        :param geometry:
+        :param basis:
+        :param method:
+        :param omega: default as [None, None], means that integer number of occupation.
+                      The entire system should always been set as [None, None].
+                      For fragments, set as [omegaup, omegadown].
+                      omegaup = floor(nup) - nup; omegadown = floor(ndown) - ndown
+                      E[nup,ndown] = (1-omegaup-omegadowm)E[]
+        :param mints:
+        :param jk:
+        """
         #basics
         self.geometry   = geometry
         self.basis      = basis
@@ -530,35 +542,47 @@ class U_Molecule():
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
+        # replace psi4.WaveFunction by psi4.UKS. This might takes much more memory.
+        self.wfn = psi4.driver.proc.scf_wavefunction_factory(self.method, self.wfn, "UKS")
         self.functional = psi4.driver.dft.build_superfunctional(method, restricted=False)[0]
+
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
-        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
+        self.Vpot       = self.wfn.V_potential()
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
-        self.ndocc      = self.wfn.nalpha()
+        self.ndocc      = self.wfn.nalpha() + self.wfn.nbeta() # what is this?
 
         self.nalpha     = self.wfn.nalpha()
         self.nbeta      = self.wfn.nbeta()
+
+        #Fractional Occupation
+        self.omega = omega
 
         #From methods
         self.jk             = jk if jk is not None else self.form_JK()
         self.S              = self.mints.ao_overlap()
         self.A              = self.form_A()
-        self.H              = self.form_H()
+        self.H, self.T, self.V = self.form_H()
 
         #From SCF calculation
         self.Da             = None
         self.Db             = None
         self.energy         = None
-        self.frag_energy    = None
-        self.energetics     = None
+        self.frag_energy    = None  # frag_energy is the energy w/o contribution of vp
+        self.energetics     = None  # energy is the energy w/ contribution of vp, \int vp*n.
         self.eig_a          = None
         self.eig_b          = None
         self.vks_a          = None
         self.vks_b          = None
         self.Fa             = None
         self.Fb             = None
+        self.Ca             = None
+        self.Cb             = None
+
+        # vp component calculator
+        self.esp_calculator = None
+        self.vxc = None
     
     def initialize(self):
         """
@@ -581,8 +605,7 @@ class U_Molecule():
         T = self.mints.ao_kinetic()
         H = T.clone()
         H.add(V)
-
-        return H
+        return H, T, V
 
     def form_JK(self, K=False):
         """
@@ -606,6 +629,95 @@ class U_Molecule():
     def get_plot(self):
         plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
         return plot
+
+    def two_gradtwo_grid(self, vpot=None):
+        """
+        Find int phi_j*phi_n*dot(grad(phi_i), grad(phi_m)) into array (ijmn).
+        Need for regularization for 2basis.
+        This may take a very long time.
+        :param vpot:
+        :return: twogradtwo (ijmn)
+        """
+        if vpot is None:
+            vpot = self.Vpot
+        points_func = vpot.properties()[0]
+        points_func.set_deriv(1)
+        twogradtwo = np.zeros((self.nbf, self.nbf, self.nbf, self.nbf))
+        # Loop over the blocks
+        for b in range(vpot.nblocks()):
+            # Obtain block information
+            block = vpot.get_block(b)
+            points_func.compute_points(block)
+            npoints = block.npoints()
+            lpos = np.array(block.functions_local_to_global())
+            w = block.w()
+
+            # Compute phi!
+            phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+            phi_x = np.array(points_func.basis_values()["PHI_X"])[:npoints, :lpos.shape[0]]
+            phi_y = np.array(points_func.basis_values()["PHI_Y"])[:npoints, :lpos.shape[0]]
+            phi_z = np.array(points_func.basis_values()["PHI_Z"])[:npoints, :lpos.shape[0]]
+
+            inner = np.einsum("pa,pb->pab", phi_x, phi_x, optimize=True)
+            inner += np.einsum("pa,pb->pab", phi_y, phi_y, optimize=True)
+            inner += np.einsum("pa,pb->pab", phi_z, phi_z, optimize=True)
+
+            idx = np.ix_(lpos,lpos,lpos,lpos)
+
+            twogradtwo[idx] += np.einsum("pim,pj,pn,p->ijmn", inner, phi, phi, w, optimize=True)
+        return twogradtwo
+
+    def update_wfn_info(self):
+        """
+        Update wfn.Da and wfn.Db from self.Da and self.Db, WITH OMEGA.
+        :return:
+        """
+        self.wfn.Da().np[:] = self.Da.np * self.omega
+        self.wfn.Db().np[:] = self.Db.np * self.omega
+        # self.wfn.Ca().np[:] = self.Ca.np
+        # self.wfn.Cb().np[:] = self.Cb.np
+        # self.wfn.epsilon_a().np[:] = self.eig_a.np
+        # self.wfn.epsilon_b().np[:] = self.eig_b.np
+        return
+
+    def esp_on_grid(self, grid=None, Vpot=None):
+        """
+        For given Da Db, get the esp on grid. Right now it does not work well. If you check
+        the potential on the grid, it is not smooth. The density info should be in self.wfn.
+        :param grid: N*3 np.array. If None, calculate the grid.
+        :param Vpot: for calculating grid. Will be ignored if grid is given.
+        :return: esp
+        """
+        # Breaks in multi-threading
+        nthreads = psi4.get_num_threads()
+        psi4.set_num_threads(1)
+        if self.esp_calculator is None:
+            self.esp_calculator = psi4.core.ESPPropCalc(self.wfn)
+        # Grid
+        if grid is None:
+            if Vpot is None:
+                x, y, z, _ = self.Vpot.get_np_xyzw()
+                grid = np.array([x, y, z])
+                grid = psi4.core.Matrix.from_array(grid.T)
+                assert grid.shape[1] == 3, "Grid should be N*3 np.array"
+            else:
+                x, y, z, _ = Vpot.get_np_xyzw()
+                grid = np.array([x, y, z])
+                grid = psi4.core.Matrix.from_array(grid.T)
+                assert grid.shape[1] == 3, "Grid should be N*3 np.array"
+        else:
+            assert grid.shape[1] == 3, "Grid should be N*3 np.array"
+            grid = psi4.core.Matrix.from_array(grid)
+
+        self.update_wfn_info()
+        # Calculate esp
+        esp = self.esp_calculator.compute_esp_over_grid_in_memory(grid)
+        esp = -esp.np
+
+        # Set threads back.
+        psi4.set_num_threads(nthreads)
+
+        return esp
 
     def scf(self, maxiter=30, vp_add=False, vp_matrix=None, print_energies=False):
         """
@@ -757,13 +869,13 @@ class U_Embedding:
         #from mehtods
         self.fragment_densities = self.get_density_sum()
 
-    def get_energies(self):
-        total = []
-        for i in range(len(self.fragments)):
-            total.append(self.fragments[i].energies)
-        total.append(self.molecule.energies)
-        pandas = pd.concat(total,axis=1)
-        return pandas
+    # def get_energies(self):
+    #     total = []
+    #     for i in range(len(self.fragments)):
+    #         total.append(self.fragments[i].energies)
+    #     total.append(self.molecule.energies)
+    #     pandas = pd.concat(total,axis=1)
+    #     return pandas
 
     def get_density_sum(self):
         sum = self.fragments[0].Da.np.copy()
