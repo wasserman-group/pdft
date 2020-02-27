@@ -111,11 +111,6 @@ def matrix_basis_to_grid(mol, mat, blocks=False):
     full_mat = np.array(full_mat)
     full_w = np.array(fullw)
 
-    # A bug here.
-    # if blocks is True:
-    #     return frag_mat, [frag_x, frag_y, frag_z, frag_w]
-    # if blocks is False:
-    #     return full_mat, [x,y,z,full_w]
     return full_mat, [x,y,z,full_w]
 
 def grid_to_matrix_basis(self, value, w=None):
@@ -1385,4 +1380,3 @@ def plot1d_x(data, Vpot, dimmer_length=None, title=None, ax= None):
             ax.set_title(title)
     if ax is None:
         plt.show()
-
