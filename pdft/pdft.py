@@ -626,7 +626,6 @@ class U_Molecule():
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
-        self.ndocc      = self.wfn.nalpha() + self.wfn.nbeta() # what is this?
 
         self.nalpha     = self.wfn.nalpha()
         self.nbeta      = self.wfn.nbeta()
@@ -1386,5 +1385,4 @@ def plot1d_x(data, Vpot, dimmer_length=None, title=None, ax= None):
             ax.set_title(title)
     if ax is None:
         plt.show()
-
 
