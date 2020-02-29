@@ -313,7 +313,7 @@ class Molecule():
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
-        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=self.restricted)[0]
+        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=True)[0]
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
 
