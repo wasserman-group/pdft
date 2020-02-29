@@ -43,6 +43,7 @@ def test_LDA_energy_restricted(he_dimer):
     psi4.core.clean()
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=he_dimer)
     helium = pdft.Molecule(he_dimer, "cc-pVDZ", "SVWN")
+    helium.scf()
     pdft_energy = helium.energy
 
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
@@ -54,6 +55,7 @@ def test_LDA_unrestricted_two_shells(he_dimer):
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=he_dimer)
     helium = pdft.U_Molecule(he_dimer, "cc-pVDZ", "SVWN")
+    helium.scf()
     pdft_energy = helium.energy
 
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
@@ -65,6 +67,7 @@ def test_LDA_unrestricted_one_shell(hydrogen):
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=hydrogen)
     helium = pdft.U_Molecule(hydrogen, "cc-pVDZ", "SVWN")
+    helium.scf()
     pdft_energy = helium.energy
 
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)

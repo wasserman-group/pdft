@@ -39,7 +39,7 @@ def basis_to_grid(mol, mat, blocks=True):
     superfunc = Vpot.functional()
 
     fullx, fully, fullz, fullw, full_mat = [], [], [], [], []
-    frag_w, frag_mat, frag_pos = [],[],[]
+    frag_x, frag_y, frag_z, frag_w, frag_mat, frag_pos = [],[],[],[],[],[]
 
     # Loop Over Blocks
     for l_block in range(Vpot.nblocks()):
@@ -48,10 +48,13 @@ def basis_to_grid(mol, mat, blocks=True):
         l_grid = Vpot.get_block(l_block)
 
         l_w = np.array(l_grid.w())
-        frag_w.append(l_w)
         l_x = np.array(l_grid.x())
         l_y = np.array(l_grid.y())
         l_z = np.array(l_grid.z())
+        frag_x.append(l_x)
+        frag_y.append(l_y)
+        frag_z.append(l_z)
+        frag_w.append(l_w)
 
         for i in range(len(l_x)):
             fullx.append(l_x[i])
@@ -309,12 +312,11 @@ class Molecule():
         self.geometry   = geometry
         self.basis      = basis
         self.method     = method
-        self.restricted = restricted
         self.Enuc       = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
-        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=self.restricted)[0]
+        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=True)[0]
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
 
