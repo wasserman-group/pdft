@@ -33,11 +33,6 @@ before_install:
 
 install:
 
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  - conda info -a
   - if [[ "$PYTHON_VER" == "3.6" ]]; then
         conda create -q -n p4env python=$PYTHON_VER psi4 numpy=1.13 matplotlib jupyter scipy -c psi4;
     else
