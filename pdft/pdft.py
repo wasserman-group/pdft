@@ -309,7 +309,6 @@ class Molecule():
         self.geometry   = geometry
         self.basis      = basis
         self.method     = method
-        self.restricted = restricted
         self.Enuc       = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
