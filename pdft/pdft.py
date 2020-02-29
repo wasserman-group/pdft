@@ -38,8 +38,8 @@ def basis_to_grid(mol, mat, blocks=True):
     points_func = Vpot.properties()[0]
     superfunc = Vpot.functional()
 
-    full_phi, fullx, fully, fullz, fullw, full_mat = [], [], [], [], [], []
-    frag_phi, frag_w, frag_mat, frag_pos = [],[],[],[]
+    fullx, fully, fullz, fullw, full_mat = [], [], [], [], []
+    frag_w, frag_mat, frag_pos = [],[],[]
 
     # Loop Over Blocks
     for l_block in range(Vpot.nblocks()):
@@ -69,26 +69,18 @@ def basis_to_grid(mol, mat, blocks=True):
         nfunctions = lpos.shape[0]
 
         phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
-        frag_phi.append(phi)
-        
         l_mat = mat[(lpos[:, None], lpos)]
-        
         mat_r = np.einsum('pm,mn,pn->p', phi, l_mat, phi, optimize=True)
         frag_mat.append(mat_r[:l_npoints])
 
         for i in range(len(mat_r)):
             full_mat.append(mat_r[i])
             
-        for i in range(len(phi)):
-            full_phi.append(phi[i])
-            
     x, y, z= np.array(fullx), np.array(fully), np.array(fullz)
     full_mat = np.array(full_mat)
-    full_phi = np.array(full_phi)
     full_w = np.array(fullw)
         
     if blocks is True:
-        #return frag_mat, frag_phi, frag_w, frag_pos
         return frag_mat, [frag_x, frag_y, frag_z, frag_w]
     if blocks is False: 
         return full_mat, [x,y,z,full_w]
@@ -167,7 +159,6 @@ def fouroverlap(wfn,geometry,basis, mints):
         S_densityfitting = np.einsum('Pmn,PQ,Qrs->mnrs', S_Pmn, S_PQinv, S_Pmn, optimize=True)
         return S_densityfitting, d_mnQ, S_Pmn, S_PQ
 
-
 def xc(D, Vpot, functional='lda'):
     """
     Calculates the exchange correlation energy and exchange correlation
@@ -237,7 +228,6 @@ def xc(D, Vpot, functional='lda'):
         Varr[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
     return e_xc, Varr
-
 
 def U_xc(D_a, D_b, Vpot, functional='lda'):
     """
@@ -314,7 +304,7 @@ def U_xc(D_a, D_b, Vpot, functional='lda'):
     return e_xc, V_a,  V_b
 
 class Molecule():
-    def __init__(self, geometry, basis, method, mints=None, jk=None, restricted=True):
+    def __init__(self, geometry, basis, method, mints=None, jk=None):
         #basics
         self.geometry   = geometry
         self.basis      = basis
@@ -326,12 +316,7 @@ class Molecule():
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
         self.functional = psi4.driver.dft.build_superfunctional(method, restricted=self.restricted)[0]
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
-
-        if restricted == True:
-            resctricted_label = "RV"
-        elif restricted == False:
-            restricted_label  = "UV"
-        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, resctricted_label)
+        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
@@ -347,11 +332,18 @@ class Molecule():
         self.C              = None
         self.Cocc           = None
         self.D              = None
+        self.D_r            = None
+        self.D0             = None
         self.energy         = None
         self.frag_energy    = None
         self.energetics     = None
         self.eigs           = None
         self.vks            = None
+        self.orbitals       = None
+        self.orbitals_r     = None
+
+        #For basis/grid
+        self.grid           = None
 
 
     def initialize(self):
@@ -378,7 +370,7 @@ class Molecule():
 
         return H
 
-    def form_JK(self, K=False):
+    def form_JK(self, K=True):
         """
         Constructs a psi4 JK object from input basis
         """
@@ -396,6 +388,23 @@ class Molecule():
         A = self.mints.ao_overlap()
         A.power(-0.5, 1.e-14)
         return A
+
+    def get_orbitals(self):
+        """
+        Turns the C matrix into a list of matrices with each orbitals
+        """
+        orbitals = []
+        orbitals_r = []
+        nbf = self.nbf
+        for orb_i in range(nbf):
+            orbital = np.einsum('p,q->pq', self.C.np[:,orb_i], self.C.np[:,orb_i])
+            orbital_r = basis_to_grid(self, orbital)
+            orbitals.append(orbital)
+            orbitals_r.append(orbital_r)
+
+        self.orbitals = orbitals
+        self.orbitals_r = orbitals_r
+
 
     def get_plot(self):
         plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
@@ -420,13 +429,11 @@ class Molecule():
         if vp_add == False:
             vp = psi4.core.Matrix(self.nbf,self.nbf)
             self.initialize()
+            C, Cocc, D, eigs = build_orbitals(self.H, self.A, self.ndocc)
 
         if vp_add == True:
             vp = vp_matrix
-
-
-
-        C, Cocc, D, eigs = build_orbitals(self.H, self.A, self.ndocc)
+            C, Cocc, D, eigs = self.C, self.Cocc, self.D, self.eigs
 
         diis_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest") 
 
@@ -502,6 +509,12 @@ class Molecule():
         self.energetics     = energetics
         self.eigs           = eigs
         self.vks            = Vks
+        self.D_r, self.grid = basis_to_grid(self, self.D.np)
+
+        self.get_orbitals()
+
+        if vp_matrix == None:
+            self.D_0 = D 
 
         return
 
