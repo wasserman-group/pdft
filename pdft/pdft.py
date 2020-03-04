@@ -449,7 +449,7 @@ class U_Molecule():
         #basics
         self.geometry   = geometry
         self.basis      = basis
-        self.method     = method
+        self.method     = functional_factory(self.method, False)
         self.Enuc = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
@@ -457,6 +457,7 @@ class U_Molecule():
         self.functional = psi4.driver.dft.build_superfunctional(method, restricted=False)[0]
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
+        self.Vpot.initialize()
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
@@ -484,17 +485,6 @@ class U_Molecule():
         self.Fa             = None
         self.Fb             = None
     
-    def initialize(self):
-        """
-        Initializes functional and V potential objects
-        """
-        #Functional
-        self.functional.set_deriv(2)
-        self.functional.allocate()
-
-        #External Potential
-        self.Vpot.initialize()
-
 
     def form_H(self):
         """
@@ -598,13 +588,13 @@ class U_Molecule():
             F_b.axpy(1.0, vp_b)
 
             Vks_a = self.mints.ao_potential()
-            Vks_a.axpy(0.5, self.jk.J()[0])
-            Vks_a.axpy(0.5, self.jk.J()[1])
+            Vks_a.axpy(1.0, self.jk.J()[0])
+            Vks_a.axpy(1.0, self.jk.J()[1])
             Vks_a.axpy(1.0, Vxc_a)
 
             Vks_b = self.mints.ao_potential()
-            Vks_b.axpy(0.5, self.jk.J()[0])
-            Vks_b.axpy(0.5, self.jk.J()[1])
+            Vks_b.axpy(1.0, self.jk.J()[0])
+            Vks_b.axpy(1.0, self.jk.J()[1])
             Vks_b.axpy(1.0, Vxc_b)
             
 
