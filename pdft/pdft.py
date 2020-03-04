@@ -372,19 +372,32 @@ class Molecule():
             self.jk.compute()
             self.jk.C_clear()
 
-            #Bring core matrix
-            F = self.H.clone()
-
-            #Exchange correlation energy/matrix
+            #Set pointers for grid calculations
             self.Vpot.set_D([D])
             self.Vpot.properties()[0].set_pointers(D)
+
+            #Bring core matrix
+            F = self.H.clone()
+            F.axpy(2.0, self.jk.J()[0])
+
+            #Hybrid in Exchange?
+            if self.functional.is_x_hybrid() is True:
+                alpha = self.functional.x_alpha()
+                F.axpy(-alpha, self.jk.K()[0])
+            elif self.functional.is_x_hybrid() is False:
+                alpha = 0.0
+
+            #Hybrid in Correlation
+            if self.functional.is_c_hybrid() is True:
+                raise NameError("correlation hybrids are not avaliable")
+
+            #DFT Components
             ks_e ,Vxc = xc(D, self.Vpot)
             Vxc = psi4.core.Matrix.from_array(Vxc)
-
-            #add components to matrix
-            F.axpy(2.0, self.jk.J()[0])
             F.axpy(1.0, Vxc)
-            F.axpy(1.0, vp)
+
+            #PDFT Components
+            F.axpy(2.0, vp)
 
             #DIIS
             diis_e = psi4.core.triplet(F, D, self.S, False, False, False)
@@ -393,11 +406,15 @@ class Molecule():
             diis_obj.add(F, diis_e)
             dRMS = diis_e.rms()
 
-            SCF_E  = 2.0 * self.H.vector_dot(D)
-            SCF_E += 2.0 * self.jk.J()[0].vector_dot(D)
-            SCF_E += ks_e
-            SCF_E += self.Enuc
-            SCF_E += 2.0 * vp.vector_dot(D)
+            #Define Energetics
+            e_core     = 2.0 * self.H.vector_dot(D)
+            e_hartree  = 2.0 * self.jk.J()[0].vector_dot(D)
+            e_exchange = -1.0 * alpha * self.jk.K()[0].vector_dot(D)
+            e_ks       = 1.0 * ks_e
+            e_partiton = 2.0 * vp.vector_dot(D)
+            e_nuclear  = 1.0 * self.Enuc
+
+            SCF_E = e_core, e_hartree, e_exchange, e_ks, e_partition, e_nuclear
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
@@ -423,7 +440,13 @@ class Molecule():
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
-        energetics = {"Core": 2.0 * self.H.vector_dot(D), "Hartree": 2.0 * self.jk.J()[0].vector_dot(D), "Exchange-Correlation":ks_e, "Nuclear": self.Enuc, "Total": SCF_E }
+        energetics = {"Core" : e_core,
+                      "Hartree" : e_hartree, 
+                      "Exact Exchange" : e_exchange, 
+                      "Exchange-Correlation" : e_ks, 
+                      "Nuclear" : e_nuclear, 
+                      "Partition" : e_partition,
+                      "Total" : SCF_E}
 
         self.C              = C
         self.Cocc           = Cocc
