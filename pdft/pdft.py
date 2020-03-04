@@ -8,6 +8,10 @@ import qcelemental as qc
 import numpy as np
 import os
 
+from xc import functional_factory
+from xc import xc
+from xc import u_xc
+
 
 def basis_to_grid(mol, mat, blocks=True):
     """
@@ -246,9 +250,10 @@ class Molecule():
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
-        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=True)[0]
+        self.functional = functional_factory(self.method, True)
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
+        self.Vpot.initialize()
 
         #From psi4 objects
         self.nbf        = self.wfn.nso()
@@ -276,18 +281,6 @@ class Molecule():
 
         #For basis/grid
         self.grid           = None
-
-
-    def initialize(self):
-        """
-        Initializes functional and V potential objects
-        """
-        #Functional
-        self.functional.set_deriv(2)
-        self.functional.allocate()
-
-        #External Potential
-        self.Vpot.initialize()
 
 
     def form_H(self):
@@ -360,7 +353,6 @@ class Molecule():
         """
         if vp_add == False:
             vp = psi4.core.Matrix(self.nbf,self.nbf)
-            self.initialize()
             C, Cocc, D, eigs = build_orbitals(self.H, self.A, self.ndocc)
 
         if vp_add == True:
