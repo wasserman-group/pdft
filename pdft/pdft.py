@@ -8,9 +8,9 @@ import qcelemental as qc
 import numpy as np
 import os
 
-from xc import functional_factory
-from xc import xc
-from xc import u_xc
+from .xc import functional_factory
+from .xc import xc
+from .xc import u_xc
 
 
 def basis_to_grid(mol, mat, blocks=True):
@@ -165,80 +165,6 @@ def fouroverlap(wfn,geometry,basis, mints):
         d_mnQ = np.einsum('Pmn,PQ->mnQ',S_Pmn,S_PQinv)
         S_densityfitting = np.einsum('Pmn,PQ,Qrs->mnrs', S_Pmn, S_PQinv, S_Pmn, optimize=True)
         return S_densityfitting, d_mnQ, S_Pmn, S_PQ
-
-
-    """
-    Calculates the exchange correlation energy and exchange correlation
-    potential to be added to the KS matrix
-
-    Parameters
-    ----------
-    D: psi4.core.Matrix
-        One-particle density matrix
-    
-    Vpot: psi4.core.VBase
-        V potential 
-
-    functional: str
-        Exchange correlation functional. Currently only supports RKS LSDA 
-
-    Returns
-    -------
-
-    e_xc: float
-        Exchange correlation energy
-    
-    Varr: numpy array
-        Vxc to be added to KS matrix
-    """
-    nbf = D_a.shape[0]
-    V_a = np.zeros((nbf, nbf))
-    V_b = np.zeros((nbf, nbf))
-    
-    total_e = 0.0
-    
-    points_func = Vpot.properties()[0]
-    superfunc = Vpot.functional()
-
-    e_xc = 0.0
-    
-    # First loop over the outer set of blocks
-    for l_block in range(Vpot.nblocks()):
-        
-        # Obtain general grid information
-        l_grid = Vpot.get_block(l_block)
-        l_w = np.array(l_grid.w())
-        l_x = np.array(l_grid.x())
-        l_y = np.array(l_grid.y())
-        l_z = np.array(l_grid.z())
-        l_npoints = l_w.shape[0]
-
-        points_func.compute_points(l_grid)
-
-        # Compute the functional itself
-        ret = superfunc.compute_functional(points_func.point_values(), -1)
-        
-        e_xc += np.vdot(l_w, np.array(ret["V"])[:l_npoints])
-        v_rho_a = np.array(ret["V_RHO_A"])[:l_npoints]
-        v_rho_b = np.array(ret["V_RHO_B"])[:l_npoints]
-    
-        # Recompute to l_grid
-        lpos = np.array(l_grid.functions_local_to_global())
-        points_func.compute_points(l_grid)
-        nfunctions = lpos.shape[0]
-        
-        # Integrate the LDA
-        phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
-
-        # LDA
-        Vtmp_a = np.einsum('pb,p,p,pa->ab', phi, v_rho_a, l_w, phi, optimize=True)
-        Vtmp_b = np.einsum('pb,p,p,pa->ab', phi, v_rho_b, l_w, phi, optimize=True)
-        
-        # Sum back to the correct place
-        V_a[(lpos[:, None], lpos)] += 0.5*(Vtmp_a + Vtmp_a.T)
-        V_b[(lpos[:, None], lpos)] += 0.5*(Vtmp_b + Vtmp_b.T)
-
-    return e_xc, V_a,  V_b
 
 class Molecule():
     def __init__(self, geometry, basis, method, mints=None, jk=None):
@@ -407,14 +333,14 @@ class Molecule():
             dRMS = diis_e.rms()
 
             #Define Energetics
-            e_core     = 2.0 * self.H.vector_dot(D)
-            e_hartree  = 2.0 * self.jk.J()[0].vector_dot(D)
-            e_exchange = -1.0 * alpha * self.jk.K()[0].vector_dot(D)
-            e_ks       = 1.0 * ks_e
-            e_partiton = 2.0 * vp.vector_dot(D)
-            e_nuclear  = 1.0 * self.Enuc
+            e_core      = 2.0 * self.H.vector_dot(D)
+            e_hartree   = 2.0 * self.jk.J()[0].vector_dot(D)
+            e_exchange  = -1.0 * alpha * self.jk.K()[0].vector_dot(D)
+            e_ks        = 1.0 * ks_e
+            e_partition = 2.0 * vp.vector_dot(D)
+            e_nuclear   = 1.0 * self.Enuc
 
-            SCF_E = e_core, e_hartree, e_exchange, e_ks, e_partition, e_nuclear
+            SCF_E = e_core + e_hartree + e_exchange + e_ks + e_partition + e_nuclear
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
@@ -472,12 +398,12 @@ class U_Molecule():
         #basics
         self.geometry   = geometry
         self.basis      = basis
-        self.method     = functional_factory(self.method, False)
+        self.method     = method
         self.Enuc = self.geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
         self.wfn        = psi4.core.Wavefunction.build(self.geometry, self.basis)
-        self.functional = psi4.driver.dft.build_superfunctional(method, restricted=False)[0]
+        self.functional = functional_factory(self.method, False)
         self.mints = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
@@ -564,8 +490,6 @@ class U_Molecule():
             vp_a = psi4.core.Matrix(self.nbf,self.nbf)
             vp_b = psi4.core.Matrix(self.nbf,self.nbf)
 
-            self.initialize()
-
         if vp_add == True:
             vp_a = vp_matrix[0]
             vp_b = vp_matrix[1]
@@ -597,7 +521,7 @@ class U_Molecule():
             self.Vpot.set_D([D_a,D_b])
             self.Vpot.properties()[0].set_pointers(D_a, D_b)
 
-            ks_e ,Vxc_a, Vxc_b = U_xc(D_a, D_b, self.Vpot)
+            ks_e ,Vxc_a, Vxc_b = u_xc(D_a, D_b, self.Vpot)
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
 
