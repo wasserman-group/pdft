@@ -515,8 +515,19 @@ class U_Molecule():
             #Bring core matrix
             F_a = self.H.clone()
             F_b = self.H.clone()
- 
 
+            #Exchange Hybrid?
+            if self.functional.is_x_hybrid() is True:
+                alpha = self.functional.x_alpha()
+                F_a.axpy(-alpha, self.jk.K()[0])
+                F_b.axpy(-alpha, self.jk.K()[1])
+            elif self.functional.is_x_hybrid() is False:
+                alpha = 0.0
+
+            #Correlation Hybrid?
+            if self.functional.is_c_hybrid() is True:
+                raise NameError("correlation hybrids are not availiable")
+ 
             #Exchange correlation energy/matrix
             self.Vpot.set_D([D_a,D_b])
             self.Vpot.properties()[0].set_pointers(D_a, D_b)
@@ -559,17 +570,17 @@ class U_Molecule():
             dRMSa = diisa_e.rms()
             dRMSb = diisb_e.rms()
 
-            Core = 1.0 * self.H.vector_dot(D_a) + 1.0 * self.H.vector_dot(D_b)
-            Hartree_a = 1.0 * self.jk.J()[0].vector_dot(D_a) + self.jk.J()[1].vector_dot(D_a)
-            Hartree_b = 1.0 * self.jk.J()[0].vector_dot(D_b) + self.jk.J()[1].vector_dot(D_b)
-            Partition = 1.0 * vp_a.vector_dot(D_a) + vp_b.vector_dot(D_b)
-            Exchange_Correlation = ks_e
+            #Define Energetics
+            e_core       =  1.0 * self.H.vector_dot(D_a) + 1.0 * self.H.vector_dot(D_b)
+            e_hartree_a  =  0.5 * (self.jk.J()[0].vector_dot(D_a) + self.jk.J()[1].vector_dot(D_a))
+            e_hartree_b  =  0.5 * (self.jk.J()[0].vector_dot(D_b) + self.jk.J()[1].vector_dot(D_b))
+            e_exchange_a = -0.5 * alpha * (self.jk.K()[0].vector_dot(D_a))
+            e_exchange_b = -0.5 * alpha * (self.jk.K()[1].vector_dot(D_b))
+            e_ks         =  1.0 * ks_e
+            e_partition  =  1.0 * vp_a.vector_dot(D_a) + vp_b.vector_dot(D_b)
+            e_nuclear    =  1.0 * 1.0 * self.Enuc
 
-            SCF_E = Core
-            SCF_E += (Hartree_a + Hartree_b) * 0.5
-            SCF_E += Partition
-            SCF_E += Exchange_Correlation            
-            SCF_E += self.Enuc
+            SCF_E = e_core + e_hartree_a + en_hartree_b + e_exchange_a + e_exchange_b + e_ks + e_partition + e_nuclear
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
@@ -592,7 +603,13 @@ class U_Molecule():
             if SCF_ITER == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded.")
 
-        energetics = {"Core":Core, "Hartree":(Hartree_a+Hartree_b)*0.5, "Exchange_Correlation":ks_e, "Nuclear":self.Enuc, "Total Energy":SCF_E}
+        energetics = {"Core" : e_core,
+                "Hartree" : e_hartree_a + e_hartree_b, 
+                "Exact Exchange" : e_exchange_a + e_exchange_b, 
+                "Exchange-Correlation" : e_ks, 
+                "Nuclear" : e_nuclear, 
+                "Partition" : e_partition,
+                "Total" : SCF_E}
 
         self.Da             = D_a
         self.Db             = D_b
