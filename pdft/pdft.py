@@ -447,7 +447,7 @@ class U_Molecule():
 
         return H
 
-    def form_JK(self, K=False):
+    def form_JK(self, K=True):
         """
         Constructs a psi4 JK object from input basis
         """
@@ -580,7 +580,7 @@ class U_Molecule():
             e_partition  =  1.0 * vp_a.vector_dot(D_a) + vp_b.vector_dot(D_b)
             e_nuclear    =  1.0 * 1.0 * self.Enuc
 
-            SCF_E = e_core + e_hartree_a + en_hartree_b + e_exchange_a + e_exchange_b + e_ks + e_partition + e_nuclear
+            SCF_E = e_core + e_hartree_a + e_hartree_b + e_exchange_a + e_exchange_b + e_ks + e_partition + e_nuclear
 
             #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
             #       % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
@@ -614,7 +614,7 @@ class U_Molecule():
         self.Da             = D_a
         self.Db             = D_b
         self.energy         = SCF_E
-        self.frag_energy    = SCF_E - Partition
+        self.frag_energy    = SCF_E - e_partition
         self.energetics     = energetics
         self.eig_a          = eigs_a
         self.eig_b          = eigs_b
