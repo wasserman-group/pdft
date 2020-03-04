@@ -162,77 +162,7 @@ def fouroverlap(wfn,geometry,basis, mints):
         S_densityfitting = np.einsum('Pmn,PQ,Qrs->mnrs', S_Pmn, S_PQinv, S_Pmn, optimize=True)
         return S_densityfitting, d_mnQ, S_Pmn, S_PQ
 
-def xc(D, Vpot, functional='lda'):
-    """
-    Calculates the exchange correlation energy and exchange correlation
-    potential to be added to the KS matrix
 
-    Parameters
-    ----------
-    D: psi4.core.Matrix
-        One-particle density matrix
-    
-    Vpot: psi4.core.VBase
-        V potential 
-
-    functional: str
-        Exchange correlation functional. Currently only supports RKS LSDA 
-
-    Returns
-    -------
-
-    e_xc: float
-        Exchange correlation energy
-    
-    Varr: numpy array
-        Vxc to be added to KS matrix
-    """
-    nbf = D.shape[0]
-    Varr = np.zeros((nbf, nbf))
-    
-    total_e = 0.0
-    
-    points_func = Vpot.properties()[0]
-    superfunc = Vpot.functional()
-
-    e_xc = 0.0
-    
-    # First loop over the outer set of blocks
-    for l_block in range(Vpot.nblocks()):
-        
-        # Obtain general grid information
-        l_grid = Vpot.get_block(l_block)
-        l_w = np.array(l_grid.w())
-        l_x = np.array(l_grid.x())
-        l_y = np.array(l_grid.y())
-        l_z = np.array(l_grid.z())
-        l_npoints = l_w.shape[0]
-
-        points_func.compute_points(l_grid)
-
-        # Compute the functional itself
-        ret = superfunc.compute_functional(points_func.point_values(), -1)
-        
-        e_xc += np.vdot(l_w, np.array(ret["V"])[:l_npoints])
-        v_rho = np.array(ret["V_RHO_A"])[:l_npoints]
-    
-        # Recompute to l_grid
-        lpos = np.array(l_grid.functions_local_to_global())
-        points_func.compute_points(l_grid)
-        nfunctions = lpos.shape[0]
-        
-        # Integrate the LDA
-        phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
-
-        # LDA
-        Vtmp = np.einsum('pb,p,p,pa->ab', phi, v_rho, l_w, phi, optimize=True)
-        
-        # Sum back to the correct place
-        Varr[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
-
-    return e_xc, Varr
-
-def U_xc(D_a, D_b, Vpot, functional='lda'):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix
