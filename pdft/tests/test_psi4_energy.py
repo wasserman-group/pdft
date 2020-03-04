@@ -37,6 +37,23 @@ def hydrogen():
 
     return h
 
+@pytest.fixture()
+def ethylene():
+
+    c2h4 = psi4.geometry("""
+    0 1
+    H      1.1610      0.0661      1.0238
+    C      0.6579     -0.0045      0.0639
+    H      1.3352     -0.0830     -0.7815
+    C     -0.6579      0.0045     -0.0639
+    H     -1.3355      0.0830      0.7812
+    H     -1.1608     -0.0661     -1.0239
+    units angstrom
+    symmetry c1
+    """)
+
+    return c2h4
+
 
 def test_LDA_energy_restricted(he_dimer):
 
@@ -71,6 +88,106 @@ def test_LDA_unrestricted_one_shell(hydrogen):
     pdft_energy = helium.energy
 
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+def test_pbe_restricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("PBE/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.Molecule(ethylene, "aug-cc-pvdz", "pbe")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+def test_pbe_urestricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("PBE/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.U_Molecule(ethylene, "aug-cc-pvdz", "pbe")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-3)
+
+
+def test_tpss_restricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("TPSS/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.Molecule(ethylene, "aug-cc-pvdz", "tpss")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+def test_tpss_urestricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("TPSS/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.U_Molecule(ethylene, "aug-cc-pvdz", "tpss")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-3)
+
+def test_pbe0_restricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("pbe0/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.Molecule(ethylene, "aug-cc-pvdz", "pbe0")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+def test_pbe0_urestricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("pbe0/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.U_Molecule(ethylene, "aug-cc-pvdz", "pbe0")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-3)
+
+def test_b3lyp_restricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("b3lyp/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.Molecule(ethylene, "aug-cc-pvdz", "b3lyp")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+def test_b3lyp_urestricted(ethylene):
+
+    psi4.core.clean()
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("b3lyp/aug-cc-pvdz", molecule=ethylene)
+
+    ethy = pdft.U_Molecule(ethylene, "aug-cc-pvdz", "b3lyp")
+    ethy.scf()
+    pdft_energy = ethy.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
+
+
+
 
 
 
