@@ -5,6 +5,8 @@ A fragment based calculation using density functional theory
 
 # Add imports here
 from .pdft import *
+from .inversion import *
+from .tools import *
 from .libcubeprop import *
 
 
