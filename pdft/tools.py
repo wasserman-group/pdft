@@ -113,13 +113,13 @@ def grid_to_basis(mol, frag_phi, frag_pos, f):
     nbf = mol.nbf
     basis_grid_matrix = np.empty((0, nbf ** 2))
     
-    for block in range(len(phi)):
-        appended = np.zeros((len(phi[block]), nbf**2))
-        for points in range(len(phi[block])):
+    for block in range(len(frag_phi)):
+        appended = np.zeros((len(frag_phi[block]), nbf**2))
+        for points in range(len(frag_phi[block])):
             appendelements = np.zeros((1, nbf))
-            appendelements[0, frag_pos[block]] = phi[block][points,:]
+            appendelements[0, frag_pos[block]] = frag_phi[block][points,:]
             appended[points, :] = np.squeeze((appendelements.T.dot(appendelements)).reshape(nbf ** 2, 1))
-        appended = appended.reshape(len(phi[block]), nbf ** 2)
+        appended = appended.reshape(len(frag_phi[block]), nbf ** 2)
         basis_grid_matrix = np.append(basis_grid_matrix, appended, axis=0)
             
     mat = np.linalg.lstsq(np.array(basis_grid_matrix), f, rcond=-1e-16)
