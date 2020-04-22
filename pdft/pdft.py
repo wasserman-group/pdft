@@ -20,29 +20,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
-def get_sep_axis(mol, mat):
-
-    density_grid, grid = basis_to_grid(mol, mat, blocks=False)
-
-    x = []
-    y = []
-
-    for i in range(len(grid[0])):
-        if grid[0][i] == 0.0:
-            if grid[1][i] == 0.0:
-                x.append((grid[2][i]))
-                y.append(density_grid[i])
-
-
-    x = np.array(x)
-    y = np.array(y)
-
-    indx = x.argsort()
-    x = x[indx]
-    y = y[indx]
-    
-    return x, y
-
 def basis_to_grid(mol, mat, blocks=True):
     """
     Turns a matrix expressed in the basis of mol to its grid representation
@@ -82,10 +59,10 @@ def basis_to_grid(mol, mat, blocks=True):
         l_grid = Vpot.get_block(l_block)
 
         l_w = np.array(l_grid.w())
-        frag_w.append(l_w)
         l_x = np.array(l_grid.x())
         l_y = np.array(l_grid.y())
         l_z = np.array(l_grid.z())
+        frag_w.append(l_w)
 
         for i in range(len(l_x)):
             fullx.append(l_x[i])
@@ -105,9 +82,9 @@ def basis_to_grid(mol, mat, blocks=True):
         phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
         
         l_mat = mat[(lpos[:, None], lpos)]
-        
         mat_r = np.einsum('pm,mn,pn->p', phi, l_mat, phi, optimize=True)
         frag_mat.append(mat_r[:l_npoints])
+        #frag_mat.append(mat_r)
 
         for i in range(len(mat_r)):
             full_mat.append(mat_r[i])
@@ -123,29 +100,6 @@ def basis_to_grid(mol, mat, blocks=True):
         return frag_mat, frag_w
     if blocks is False: 
         return full_mat, [x,y,z,full_w] 
-
-def get_sep_axis(mol, mat):
-
-    density_grid, grid = basis_to_grid(mol, mat, blocks=False)
-
-    x = []
-    y = []
-
-    for i in range(len(grid[0])):
-        if grid[0][i] == 0.0:
-            if grid[1][i] == 0.0:
-                x.append((grid[2][i]))
-                y.append(density_grid[i])
-
-
-    x = np.array(x)
-    y = np.array(y)
-
-    indx = x.argsort()
-    x = x[indx]
-    y = y[indx]
-    
-    return x, y
 
 def grid_to_basis(mol, frag_phi, frag_pos, f):
     """
@@ -950,9 +904,12 @@ class U_Molecule():
         plot = qc.models.Molecule.from_data(self.geometry.save_string_xyz())
         return plot
 
-    def axis_plot(self, axis, matrices, labels=None, xrange=[-8,8], yrange=[-1.0, 1.0], threshold=1e-8):
+    def axis_plot(self, axis, matrices, labels=None, xrange=[-8,8], yrange=[-1.0, 1.0], threshold=1e-8, 
+                  return_array=False):
 
-        for matrix in matrices:
+        y_arrays = []
+
+        for i, matrix in enumerate(matrices):
 
             density_grid, grid = basis_to_grid(self, matrix, blocks=False)
 
@@ -987,20 +944,28 @@ class U_Molecule():
             indx = x.argsort()
             x = x[indx]
             y = y[indx]
-            
+
             if labels is None:
 
                 plt.plot(x,y)
 
             if labels is not None:
-
+                
                 plt.plot(x,y,label=labels[i])
                 plt.legend()
+
+            if return_array is True:
+                y_arrays.append((x, y))
 
         plt.xlim(xrange)
         plt.ylim(yrange)
 
         plt.show()
+
+        if return_array is True:
+            return y_arrays
+
+
 
     def scf(self, maxiter=50, vp=None, print_energies=False):
         """
@@ -1168,16 +1133,16 @@ class U_Molecule():
         self.energy                    = SCF_E
         self.frag_energy               = SCF_E - energy_partition
         self.energetics                = energetics
-        self.eigs_a                     = eigs_a
-        self.eigs_b                     = eigs_b
-        self.F_a                        = F_a
-        self.F_b                        = F_b
+        self.eigs_a                    = eigs_a
+        self.eigs_b                    = eigs_b
+        self.F_a                       = F_a
+        self.F_b                       = F_b
         self.C_a                       = C_a
         self.C_b                       = C_b
         self.Cocc_a                    = Cocc_a
         self.Cocc_b                    = Cocc_b
-        self.Da_r, self.omegas_a        = basis_to_grid(self, self.D_a.np)
-        self.Db_r, self.omegas_b        = basis_to_grid(self, self.D_b.np)
+        self.Da_r, self.omegas_a       = basis_to_grid(self, self.D_a.np)
+        self.Db_r, self.omegas_b       = basis_to_grid(self, self.D_b.np)
 
         orbitals_a = []
         orbitals_b = []
@@ -1561,10 +1526,10 @@ class U_Embedding:
 
                 for i in range(0, self.molecule.nalpha):
                     for a in range(self.molecule.nalpha, nbf):
-                        #x += np.einsum('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-                        #x += np.einsum('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
-                        x += np.einsum('m, n, l, s -> mnls', Ca[:,i], Ca[:,a], Ca[:,i], Ca[:,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-                        x += np.einsum('m, n, l, s -> mnls', Cb[:,i], Cb[:,a], Cb[:,i], Cb[:,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+                        x += np.einsum('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+                        x += np.einsum('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+                        #x += np.einsum('m, n, l, s -> mnls', Ca[:,i], Ca[:,a], Ca[:,i], Ca[:,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+                        #x += np.einsum('m, n, l, s -> mnls', Cb[:,i], Cb[:,a], Cb[:,i], Cb[:,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
 
 
                 #x_y += np.einsum('mi, na, li, sa, ia -> mnls', Ca[:,:nalpha], Ca[:,nalpha:], Ca[:,:nalpha], Ca[:,nalpha:], np.reciprocal(eigs_a),optimize=True)
