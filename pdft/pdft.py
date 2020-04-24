@@ -13,9 +13,6 @@ from .xc import xc
 from .xc import u_xc
 
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.io as pio
 
 def basis_to_grid(mol, mat, blocks=True):
     """
