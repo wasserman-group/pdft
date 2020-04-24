@@ -1,13 +1,10 @@
 PDFT (Partition Density Functional Theory)
 ==============================
-<!--
 
 [//]: # (Badges)
-[![Travis Build Status](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory.png)](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory)
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/REPLACE_WITH_APPVEYOR_LINK/branch/master?svg=true)](https://ci.appveyor.com/project/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory/branch/master)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/Partition Density Functional Theory/branch/master)
+[![Build Status](https://travis-ci.com/wasserman-group/pdft.svg?token=qfJoUsJ2RErCUYXqxfAQ&branch=master)](https://travis-ci.com/wasserman-group/pdft)
+[![codecov](https://codecov.io/gh/wasserman-group/pdft/branch/master/graph/badge.svg?token=83bevc0aMc)](https://codecov.io/gh/wasserman-group/pdft)
 
--->
 PDFT is designed for calculating the ground-state properties of a full molecular system via self-consistent calculations on isolated fragments. 
 
 ### Requirements:
