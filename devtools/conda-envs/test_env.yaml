@@ -1,9 +1,15 @@
+
 name: test
 channels:
+  - conda-forge
+  - psi4
 dependencies:
     # Base depends
   - python
   - pip
+  - numpy
+  - psi4
+  - matplotlib
 
     # Testing
   - pytest
