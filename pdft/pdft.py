@@ -2,18 +2,15 @@
 pdft.py
 """
 
-
-
-
 import psi4
 import qcelemental as qc
 import numpy as np
 import os
 import pdft
 
-from xc import functional_factory
-from xc import xc
-from xc import u_xc
+from .xc import functional_factory
+from .xc import xc
+from .xc import u_xc
 
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -141,51 +138,51 @@ def grid_to_basis(mol, frag_phi, frag_pos, f):
     
     return mat
 
-def build_orbitals(diag, A, ndocc):
-    """
-    Diagonalizes matrix
+# def build_orbitals(diag, A, ndocc):
+#     """
+#     Diagonalizes matrix
 
-    Parameters
-    ----------
-    diag: psi4.core.Matrix
-        Fock matrix
+#     Parameters
+#     ----------
+#     diag: psi4.core.Matrix
+#         Fock matrix
 
-    A: psi4.core.Matrix
-        A = S^(1/2), Produces orthonormalized Fock matrix
+#     A: psi4.core.Matrix
+#         A = S^(1/2), Produces orthonormalized Fock matrix
 
-    ndocc: integer
-        Number of occupied orbitals 
+#     ndocc: integer
+#         Number of occupied orbitals 
 
-    Returns
-    -------
-    C: psi4.core.Matrix
-        Molecular orbitals coefficient matrix
+#     Returns
+#     -------
+#     C: psi4.core.Matrix
+#         Molecular orbitals coefficient matrix
     
-    Cocc: psi4.core.Matrix
-        Occupied molecular orbitals coefficient matrix
+#     Cocc: psi4.core.Matrix
+#         Occupied molecular orbitals coefficient matrix
 
-    D: psi4.core.Matrix
-        One-particle density matrix
+#     D: psi4.core.Matrix
+#         One-particle density matrix
     
-    eigs: psi4.core.Vector
-        Eigenvectors of Fock matrix
-    """
-    Fp = psi4.core.triplet(A, diag, A, True, False, True)
+#     eigs: psi4.core.Vector
+#         Eigenvectors of Fock matrix
+#     """
+#     Fp = psi4.core.triplet(A, diag, A, True, False, True)
 
-    nbf = A.shape[0]
-    Cp = psi4.core.Matrix(nbf, nbf)
-    eigvecs = psi4.core.Vector(nbf)
-    Fp.diagonalize(Cp, eigvecs, psi4.core.DiagonalizeOrder.Ascending)
+#     nbf = A.shape[0]
+#     Cp = psi4.core.Matrix(nbf, nbf)
+#     eigvecs = psi4.core.Vector(nbf)
+#     Fp.diagonalize(Cp, eigvecs, psi4.core.DiagonalizeOrder.Ascending)
 
-    C_ort = Cp
+#     C_ort = Cp
 
-    C = psi4.core.doublet(A, Cp, False, False)
+#     C = psi4.core.doublet(A, Cp, False, False)
 
-    Cocc = psi4.core.Matrix(nbf, ndocc)
-    Cocc.np[:] = C.np[:, :ndocc]
+#     Cocc = psi4.core.Matrix(nbf, ndocc)
+#     Cocc.np[:] = C.np[:, :ndocc]
 
-    D = psi4.core.doublet(Cocc, Cocc, False, True)
-    return C, Cocc, D, eigvecs
+#     D = psi4.core.doublet(Cocc, Cocc, False, True)
+#     return C, Cocc, D, eigvecs
 
 def fouroverlap(wfn,geometry,basis, mints):
         """
@@ -214,8 +211,10 @@ def fouroverlap(wfn,geometry,basis, mints):
         return S_densityfitting, d_mnQ, S_Pmn, S_PQ
 
 
-class Molecule():
-    def __init__(self, geometry, basis, method, hybrid=None, mints=None, jk=None, restricted=True):
+class OldMolecule():
+    def __init__(self, geometry, basis, method, 
+                 mints=None, jk=None):
+
         #basics
         self.geometry   = geometry
         self.basis      = basis
@@ -250,15 +249,15 @@ class Molecule():
         self.eigs           = None
         self.vks            = None
         
-        self.D_r            = None  #Populate
-        self.F              = None  #Populate
-        self.orbitals       = None  #Populate
-        self.D_0            = None  #Populate
+        self.D_r            = None  
+        self.F              = None  
+        self.orbitals       = None  
+        self.D_0            = None  
 
         #For basis/grid
-        self.omegas         = None  #Populate
-        self.phi            = None  #Populate
-        self.pos            = None  #Populate
+        self.omegas         = None  
+        self.phi            = None 
+        self.pos            = None  
 
 
     def form_H(self):
@@ -487,7 +486,7 @@ class Embedding:
         return sum_density_r
 
     def get_delta_d(self, option):
-        if option is "grid":
+        if option == "grid":
             delta_d = []
             sum_frag_densities = self.get_density_sum_r()
             mean = 0.0
@@ -500,7 +499,7 @@ class Embedding:
 
             return delta_d, mean, integral
 
-        elif option is "matrix":
+        elif option == "matrix":
             sum_frag_densities = self.get_density_sum()
             d_d = self.molecule.D - sum_frag_densities
 
@@ -808,7 +807,7 @@ class Embedding:
 
         return vp
 
-class U_Molecule():
+class U_OldMolecule():
     def __init__(self, geometry, basis, method, mints=None, jk=None):
         #From Input
         self.geometry   = geometry
@@ -916,21 +915,21 @@ class U_Molecule():
             x = []
             y = []
     
-            if axis is "z":
+            if axis == "z":
                 for i in range(len(grid[0])):
                     if np.abs(grid[0][i]) < threshold:
                         if np.abs(grid[1][i]) < threshold:
                             x.append((grid[2][i]))
                             y.append(density_grid[i])
 
-            elif axis is "y":
+            elif axis == "y":
                 for i in range(len(grid[0])):
                     if np.abs(grid[0][i]) < threshold:
                         if np.abs(grid[2][i]) < threshold:
                             x.append((grid[1][i]))
                             y.append(density_grid[i])
 
-            elif axis is "x":
+            elif axis == "x":
                 for i in range(len(grid[0])):
                     if np.abs(grid[1][i]) < threshold:
                         if np.abs(grid[2][i]) < threshold:
@@ -964,8 +963,6 @@ class U_Molecule():
 
         if return_array is True:
             return y_arrays
-
-
 
     def scf(self, maxiter=50, vp=None, print_energies=False):
         """
@@ -1040,7 +1037,6 @@ class U_Molecule():
             #Correlation Hybrid?
             if self.functional.is_c_hybrid() is True:
                 raise NameError("correlation hybrids are not availiable")
-
 
             #Exchange correlation energy/matrix
             self.Vpot.set_D([D_a,D_b])
@@ -1219,7 +1215,7 @@ class U_Embedding:
 
     def get_delta_d(self, option):
 
-        if option is "grid":
+        if option == "grid":
             delta_d_a = []
             delta_d_b = []
 
@@ -1237,7 +1233,7 @@ class U_Embedding:
 
             return delta_d_a, delta_d_b, l1_error
 
-        elif option is "matrix":
+        elif option == "matrix":
             sum_frag_densities_a, sum_frag_densities_b = self.get_density_sum()
             dd_a = self.molecule.D_a - sum_frag_densities_a
             dd_b = self.molecule.D_b - sum_frag_densities_b
@@ -1567,10 +1563,10 @@ class U_Embedding:
 
         self.S4 = four_overlap = fouroverlap(self.molecule.wfn, self.molecule.geometry, self.molecule.basis, self.molecule.mints)[0]
 
-        if guess is "external":
+        if guess == "external":
             vp_a.axpy(0.5, self.molecule.V)
             vp_b.axpy(0.5, self.molecule.V)
-        if guess is "h_ext":
+        if guess == "h_ext":
 
             v_nad_ha = (self.molecule.vha_a.np * self.molecule.D_a.np) + (self.molecule.vha_b.np * self.molecule.D_b.np)
             v_nad_ext = self.molecule.V.np * (self.molecule.D_a.np + self.molecule.D_b.np)
