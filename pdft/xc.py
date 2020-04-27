@@ -43,7 +43,6 @@ def functional_factory(method, restricted, deriv=1, points=500000):
     
     return functional[0]
 
-
 def xc(D, Vpot):
     """
     Calculates the exchange correlation energy and exchange correlation
