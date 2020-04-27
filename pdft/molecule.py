@@ -139,7 +139,7 @@ class Molecule():
         D = psi4.core.doublet(Cocc, Cocc, False, True)
         return C, Cocc, D, eigvecs
 
-    def scf(self, maxiter=100, vp_mn=None):
+    def scf(self, maxiter=40, vp_mn=None):
         """
         Performs scf cycle
 
@@ -232,6 +232,8 @@ class Molecule():
                 Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
             Fa.axpy(1.0, Vxc_a)
             Fb.axpy(1.0, Vxc_b)
+            Fa.axpy(1.0, vp_a)
+            Fb.axpy(1.0, vp_b)
             self.vxc_a.axpy(1.0, Vxc_a)
             self.vxc_b.axpy(1.0, Vxc_b)
 
@@ -263,10 +265,11 @@ class Molecule():
 
             dRMS = 0.5 * (np.mean(diisa_e.np**2)**0.5 + np.mean(diisb_e.np**2)**0.5)
 
-            #print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'
-            #        % (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
+            if np.mod(SCF_ITER, 5.0) == 0:
+                print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'% (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
-            if (abs(SCF_E - Eold) < E_conv and abs(dRMS < D_conv)):
+            if abs(SCF_E - Eold) < E_conv:
+            #if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-3)):
                break
 
             Eold = SCF_E
@@ -294,6 +297,9 @@ class Molecule():
         self.Ca, self.Cb          = Ca, Cb
         self.Cocca, self.Coccb    = Cocca, Coccb
         self.eigs_a, self.eigs_b  = eigs_a, eigs_b
+        self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
+        self.Db_r, _              = self.basis_to_grid(self.Db.np) 
+        
 
         if vp_mn is None:
             self.Da_0             = Da
@@ -322,7 +328,6 @@ class Molecule():
         full_mat = Numpy array
             Grid representation of mat on the grid. Order not explicit. 
         """
-        nbf = self.nbf
         Vpot = self.Vpot
         
         points_func = Vpot.properties()[0]
@@ -389,9 +394,9 @@ class Molecule():
         """    
         y_arrays = []
 
-        for i, matrix in enumerate(matrices):
+        for j, matrix in enumerate(matrices):
 
-            matrix = matrix.np
+            #matrix = matrix.np
             density_grid, grid = self.basis_to_grid(matrix, blocks=False)
 
             x = []
@@ -418,18 +423,17 @@ class Molecule():
                             x.append((grid[0][i]))
                             y.append(density_grid[i])
 
-
             x = np.array(x)
             y = np.array(y)
-
             indx = x.argsort()
             x = x[indx]
             y = y[indx]
+            y_arrays.append(y)
 
             if labels is None:
                 plt.plot(x,y)
             elif labels is not None:
-                plt.plot(x,y,label=labels[i])
+                plt.plot(x,y,label=labels[j])
                 plt.legend()
             if return_array is True:
                 y_arrays.append((x, y))
@@ -442,7 +446,7 @@ class Molecule():
         plt.show()
 
         if return_array is True:
-            return y_arrays
+            return x, y_arrays
 
 class RMolecule(Molecule):
 
