@@ -135,51 +135,51 @@ def grid_to_basis(mol, frag_phi, frag_pos, f):
     
     return mat
 
-# def build_orbitals(diag, A, ndocc):
-#     """
-#     Diagonalizes matrix
+def build_orbitals(diag, A, ndocc):
+    """
+    Diagonalizes matrix
 
-#     Parameters
-#     ----------
-#     diag: psi4.core.Matrix
-#         Fock matrix
+    Parameters
+    ----------
+    diag: psi4.core.Matrix
+        Fock matrix
 
-#     A: psi4.core.Matrix
-#         A = S^(1/2), Produces orthonormalized Fock matrix
+    A: psi4.core.Matrix
+        A = S^(1/2), Produces orthonormalized Fock matrix
 
-#     ndocc: integer
-#         Number of occupied orbitals 
+    ndocc: integer
+        Number of occupied orbitals 
 
-#     Returns
-#     -------
-#     C: psi4.core.Matrix
-#         Molecular orbitals coefficient matrix
+    Returns
+    -------
+    C: psi4.core.Matrix
+        Molecular orbitals coefficient matrix
     
-#     Cocc: psi4.core.Matrix
-#         Occupied molecular orbitals coefficient matrix
+    Cocc: psi4.core.Matrix
+        Occupied molecular orbitals coefficient matrix
 
-#     D: psi4.core.Matrix
-#         One-particle density matrix
+    D: psi4.core.Matrix
+        One-particle density matrix
     
-#     eigs: psi4.core.Vector
-#         Eigenvectors of Fock matrix
-#     """
-#     Fp = psi4.core.triplet(A, diag, A, True, False, True)
+    eigs: psi4.core.Vector
+        Eigenvectors of Fock matrix
+    """
+    Fp = psi4.core.triplet(A, diag, A, True, False, True)
 
-#     nbf = A.shape[0]
-#     Cp = psi4.core.Matrix(nbf, nbf)
-#     eigvecs = psi4.core.Vector(nbf)
-#     Fp.diagonalize(Cp, eigvecs, psi4.core.DiagonalizeOrder.Ascending)
+    nbf = A.shape[0]
+    Cp = psi4.core.Matrix(nbf, nbf)
+    eigvecs = psi4.core.Vector(nbf)
+    Fp.diagonalize(Cp, eigvecs, psi4.core.DiagonalizeOrder.Ascending)
 
-#     C_ort = Cp
+    C_ort = Cp
 
-#     C = psi4.core.doublet(A, Cp, False, False)
+    C = psi4.core.doublet(A, Cp, False, False)
 
-#     Cocc = psi4.core.Matrix(nbf, ndocc)
-#     Cocc.np[:] = C.np[:, :ndocc]
+    Cocc = psi4.core.Matrix(nbf, ndocc)
+    Cocc.np[:] = C.np[:, :ndocc]
 
-#     D = psi4.core.doublet(Cocc, Cocc, False, True)
-#     return C, Cocc, D, eigvecs
+    D = psi4.core.doublet(Cocc, Cocc, False, True)
+    return C, Cocc, D, eigvecs
 
 def fouroverlap(wfn,geometry,basis, mints):
         """
@@ -1243,7 +1243,6 @@ class U_Embedding:
         delta_vp_b = (-0.5) * np.einsum('imlj, ml->ij', self.molecule.mints.ao_eri().np, dd_b_nm)
 
         return delta_vp_a, delta_vp_b
-
 
     def get_vp_dd(self, dd_a_nm, dd_b_nm):
 
