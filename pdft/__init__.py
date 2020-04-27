@@ -6,6 +6,7 @@ A fragment based calculation using density functional theory
 # Add imports here
 
 from .molecule import *
+from .inversion import *
 from .pdft import *
 
 
