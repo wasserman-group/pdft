@@ -181,6 +181,8 @@ class Inversion():
                 dvp_a, dvp_b = self.vp_zpm(dd_a_mn, dd_b_mn)
             elif method == "dd":
                 dvp_a, dvp_b = self.vp_dd(dd_a_mn, dd_b_mn)
+            elif method == "zc":
+                dvp_a, dvp_b = self.vp_zc(dd_a_mn, dd_b_mn)
 
             #Update vp
             dvp_a = psi4.core.Matrix.from_array(dvp_a)
@@ -258,3 +260,61 @@ class Inversion():
         dvp_a = dd_a 
         dvp_b = dd_b
         return dvp_a, dvp_b 
+
+    def vp_zc(self, da_mn, db_mn, rcond=1e-6):
+        """
+        Performs the Zhang-Carter Inversion
+        J. Chem. Phys. 148, 034105 (2018)
+        """        
+
+        nbf = self.molecule.nbf
+        dd = da_mn + db_mn
+
+        nalpha =  self.molecule.nalpha
+        nbeta = self.molecule.nbeta
+        
+        for frag in self.frags:
+
+            if self.molecule.nalpha == self.molecule.nbeta:
+                
+                x = np.zeros((nbf, nbf, nbf, nbf))
+
+                Ca = frag.Ca.np 
+                Cb = frag.Cb.np
+
+                #eigs_a = frag.eigs_a.np[:nalpha,None] - frag.eigs_a.np[nalpha:]
+                #eigs_b = frag.eigs_b.np[:nbeta, None] - frag.eigs_b.np[nbeta:]
+
+                for i in range(0, self.molecule.nalpha):
+                    for a in range(self.molecule.nalpha, nbf):
+                        x += np.einsum('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+                        x += np.einsum('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+                        #x += np.einsum('m, n, l, s -> mnls', Ca[:,i], Ca[:,a], Ca[:,i], Ca[:,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+                        #x += np.einsum('m, n, l, s -> mnls', Cb[:,i], Cb[:,a], Cb[:,i], Cb[:,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+
+
+                #x_y += np.einsum('mi, na, li, sa, ia -> mnls', Ca[:,:nalpha], Ca[:,nalpha:], Ca[:,:nalpha], Ca[:,nalpha:], np.reciprocal(eigs_a),optimize=True)
+                #x_y += np.einsum('mi, na, li, sa, ia -> mnls', Cb[:,:nbeta], Cb[:,nbeta:], Cb[:,:nbeta], Cb[:,nbeta:], np.reciprocal(eigs_b),optimize=True)
+
+            # else:
+
+            #     xa = np.zeros((nbf, nbf, nbf, nbf))
+            #     xb = np.zeros((nbf, nbf, nbf, nbf))
+
+            #     for i in range(0, self.molecule.nalpha):
+            #         for a in range(self.molecule.nalpha, nbf):
+            #             xa += np.einsum('m, n, l, s -> mnls', frag.C_a.np[None,i], frag.C_a.np[None,a], frag.C_a.np[None,i], frag.C_a.np[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+
+            #     for i in range(0, self.molecule.nbeta):
+            #         for a in range(self.molecule.nbeta, nbf):
+            #             xb += np.einsum('m, n, l, s -> mnls', frag.C_b.np[None,i], frag.C_b.np[None,a], frag.C_b.np[None,i], frag.C_b.np[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+
+
+
+        #x = 0.5 * (x + x.T)
+        x_inv = np.linalg.pinv(x)
+        #print("min value of x_inv", np.min(np.abs(x_inv)))
+        dvp = np.einsum('mnls, ls -> mn', x_inv, dd)
+        dvp = 0.5 * (dvp + dvp.T)
+
+        return dvp, dvp
