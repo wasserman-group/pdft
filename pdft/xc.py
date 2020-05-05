@@ -43,7 +43,7 @@ def functional_factory(method, restricted, deriv=1, points=500000):
     
     return functional[0]
 
-def xc(D, Vpot):
+def xc(D, Vpot, ingredients):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation
@@ -75,6 +75,9 @@ def xc(D, Vpot):
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
+    if ingredients is True:
+        points_funct.set_ansatz(2)
+
     func = Vpot.functional()
 
     e_xc = 0.0
@@ -90,11 +93,12 @@ def xc(D, Vpot):
         w = np.array(block.w())
 
         #Compute phi/rho
-        phi   = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
-        #rho   = np.array(points_func.point_values()["RHO_A"])[:npoints]
+        if points_func.ansatz() >= 0:
+            phi   = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+            rho   = np.array(points_func.point_values()["RHO_A"])[:npoints]
 
         #GGA components
-        if func.is_gga() is True:
+        if points_func.ansatz() >= 1:
             phi_x =  np.array(points_func.basis_values()["PHI_X"])[:npoints, :lpos.shape[0]]
             phi_y =  np.array(points_func.basis_values()["PHI_Y"])[:npoints, :lpos.shape[0]]
             phi_z =  np.array(points_func.basis_values()["PHI_Z"])[:npoints, :lpos.shape[0]]
@@ -105,7 +109,7 @@ def xc(D, Vpot):
             gamma = np.array(points_func.point_values()["GAMMA_AA"])[:npoints]
 
         #meta components
-        if func.is_meta() is True:
+        if points_func.ansatz() >= 2:
             tau = np.array(points_func.point_values()["TAU_A"])[:npoints]
 
         #Obtain Kernel
@@ -136,7 +140,7 @@ def xc(D, Vpot):
 
     return e_xc, Vnm
 
-def u_xc(D_a, D_b, Vpot):
+def u_xc(D_a, D_b, Vpot, ingredients=False):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -168,10 +172,26 @@ def u_xc(D_a, D_b, Vpot):
     nbf = D_a.shape[0]    
     V_a = np.zeros((nbf, nbf))
     V_b = np.zeros((nbf, nbf))
-    
+    na = []
+    nb = []
+    na_lap = []
+    nb_lap = []
+    na_grad_x = []
+    na_grad_y = []
+    na_grad_z = []
+    nb_grad_x = []
+    nb_grad_y = []
+    nb_grad_z = []
+    na_tau = []
+    nb_tau = []
+
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
+
+    if ingredients is True:
+        points_func.set_ansatz(2)
+
     func = Vpot.functional()
 
     e_xc = 0.0
@@ -188,11 +208,15 @@ def u_xc(D_a, D_b, Vpot):
 
         #Compute phi/rho
         phi   = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
-        rho_a   = np.array(points_func.point_values()["RHO_A"])[:npoints]
-        rho_b   = np.array(points_func.point_values()["RHO_B"])[:npoints]
+
+        if points_func.ansatz() >= 0:
+            rho_a   = np.array(points_func.point_values()["RHO_A"])[:npoints]
+            rho_b   = np.array(points_func.point_values()["RHO_B"])[:npoints]
+            na.append(rho_a)
+            nb.append(rho_b)
 
         #GGA components
-        if func.is_gga() is True:
+        if points_func.ansatz() >= 1:
             phi_x = np.array(points_func.basis_values()["PHI_X"])[:npoints, :lpos.shape[0]]
             phi_y = np.array(points_func.basis_values()["PHI_Y"])[:npoints, :lpos.shape[0]]
             phi_z = np.array(points_func.basis_values()["PHI_Z"])[:npoints, :lpos.shape[0]]
@@ -209,9 +233,11 @@ def u_xc(D_a, D_b, Vpot):
             gamma_bb = np.array(points_func.point_values()["GAMMA_BB"])[:npoints]
 
         #meta components
-        if func.is_meta() is True:
+        if points_func.ansatz() >= 2:
             tau_a = np.array(points_func.point_values()["TAU_A"])[:npoints]
             tau_b = np.array(points_func.point_values()["TAU_B"])[:npoints]
+            na_tau.append(tau_a)
+            nb_tau.append(tau_b)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
@@ -227,7 +253,6 @@ def u_xc(D_a, D_b, Vpot):
         Vtmp_b = 1.0 * np.einsum('pb,p,p,pa->ab', phi, v_rho_b, w, phi, optimize=True)
 
         if func.is_gga() is True:
-
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
             v_gamma_ab = np.array(ret["V_GAMMA_AB"])[:npoints]
             v_gamma_bb = np.array(ret["V_GAMMA_BB"])[:npoints]

@@ -15,7 +15,7 @@ from .xc import u_xc
 class Molecule():
 
     def __init__(self, geometry, basis, method, 
-                 mints = None, jk = None):
+                 mints = None, jk = None, ingredients=False):
         
         #basics
         self.geometry    = geometry
@@ -69,6 +69,9 @@ class Molecule():
         self.phi         = None
         self.Da_r        = None
         self.Db_r        = None
+
+        #Options
+        self.ingredients = ingredients
 
     def form_JK(self, K=True):
         """
@@ -220,14 +223,14 @@ class Molecule():
             if self.restricted is True:
                 self.Vpot.set_D([Da])
                 self.Vpot.properties()[0].set_pointers(Da)
-                ks_e, Vxc = xc(Da, self.Vpot)
+                ks_e, Vxc = xc(Da, self.Vpot, ingredients=self.ingredients)
                 #XC. Already scaled by alpha
                 Vxc_a = psi4.core.Matrix.from_array(1.0 * Vxc)
                 Vxc_b = psi4.core.Matrix.from_array(1.0 * Vxc)
             elif self.restricted is False:
                 self.Vpot.set_D([Da, Db])
                 self.Vpot.properties()[0].set_pointers(Da, Db)    
-                ks_e, Vxc_a, Vxc_b = u_xc(Da, Db, self.Vpot)
+                ks_e, Vxc_a, Vxc_b = u_xc(Da, Db, self.Vpot, ingredients=self.ingredients)
                 Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
                 Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
             Fa.axpy(1.0, Vxc_a)
@@ -265,8 +268,8 @@ class Molecule():
 
             dRMS = 0.5 * (np.mean(diisa_e.np**2)**0.5 + np.mean(diisb_e.np**2)**0.5)
 
-            if np.mod(SCF_ITER, 5.0) == 0:
-                print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'% (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
+            #if np.mod(SCF_ITER, 5.0) == 0:
+            #    print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'% (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
             if abs(SCF_E - Eold) < E_conv:
             #if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-3)):
@@ -450,7 +453,7 @@ class Molecule():
 
 class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method):
+    def __init__(self, geometry, basis, method, ingredients=False):
         super().__init__(geometry, basis, method)
 
         self.restricted = True
@@ -462,7 +465,7 @@ class RMolecule(Molecule):
 
 class UMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method):
+    def __init__(self, geometry, basis, method, ingredients=False):
         super().__init__(geometry, basis, method)
 
         self.restricted = False
