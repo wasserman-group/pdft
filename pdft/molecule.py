@@ -67,8 +67,8 @@ class Molecule():
         #Grid
         self.omegas      = None
         self.phi         = None
-        self.Da_r        = None
-        self.Db_r        = None
+        #self.Da_r        = None
+        #self.Db_r        = None
         self.ingredients = None
 
         #Options
@@ -292,8 +292,8 @@ class Molecule():
         self.Ca, self.Cb          = Ca, Cb
         self.Cocca, self.Coccb    = Cocca, Coccb
         self.eigs_a, self.eigs_b  = eigs_a, eigs_b
-        self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
-        self.Db_r, _              = self.basis_to_grid(self.Db.np) 
+        #self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
+        #self.Db_r, _              = self.basis_to_grid(self.Db.np) 
         
 
         if vp_mn is None:
