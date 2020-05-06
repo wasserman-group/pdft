@@ -85,6 +85,7 @@ def xc(D, Vpot, ingredients):
                        "gamma" : [],
                        "tau"  : []}
 
+    grid = {"x" : [], "y" : [], "z" : [], "w" : []}
     func = Vpot.functional()
 
     e_xc = 0.0
@@ -97,7 +98,11 @@ def xc(D, Vpot, ingredients):
         points_func.compute_points(block)
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
+        grid["x"].append(np.array(block.x()))
+        grid["y"].append(np.array(block.y()))
+        grid["z"].append(np.array(block.z()))
         w = np.array(block.w())
+        grid["w"].append(w)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -157,7 +162,7 @@ def xc(D, Vpot, ingredients):
         Vnm[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
 
-    return e_xc, Vnm, dfa_ingredients
+    return e_xc, Vnm, dfa_ingredients, grid
 
 def u_xc(D_a, D_b, Vpot, ingredients):
     """
@@ -206,6 +211,7 @@ def u_xc(D_a, D_b, Vpot, ingredients):
                        "g_bb" : [],
                        "t_a"  : [],
                        "t_b"  : []}
+    grid = {"x" : [], "y" : [], "z" : [], "w" : []}
 
     func = Vpot.functional()
 
@@ -219,7 +225,11 @@ def u_xc(D_a, D_b, Vpot, ingredients):
         points_func.compute_points(block)
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
+        grid["x"].append(np.array(block.x()))
+        grid["y"].append(np.array(block.y()))
+        grid["z"].append(np.array(block.z()))
         w = np.array(block.w())
+        grid["w"].append(w)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -321,4 +331,4 @@ def u_xc(D_a, D_b, Vpot, ingredients):
         V_b[(lpos[:, None], lpos)] += 0.5 * (Vtmp_b + Vtmp_b.T)
 
 
-    return e_xc, V_a, V_b, dfa_ingredients
+    return e_xc, V_a, V_b, dfa_ingredients, grid
