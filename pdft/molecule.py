@@ -221,7 +221,10 @@ class Molecule():
                 raise NameError("Correlation hybrids are not availiable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b = self.get_xc(Da, Db)
+            ks_e, Vxc_a, Vxc_b, self.ingredients = self.get_xc(Da, Db)
+            #XC already scaled by alpha
+            Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
+            Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
             Fa.axpy(1.0, Vxc_a)
             Fb.axpy(1.0, Vxc_b)
             Fa.axpy(1.0, vp_a)
@@ -455,12 +458,12 @@ class RMolecule(Molecule):
     def get_xc(self, Da, Db):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc = xc(Da, self.Vpot, ingredients=self.get_ingredients)
-        #XC. Already scaled by alpha
+        ks_e, Vxc, ingredients = xc(Da, self.Vpot, ingredients=self.get_ingredients)
+        #XC already scaled by alpha
         Vxc_a = psi4.core.Matrix.from_array(1.0 * Vxc)
         Vxc_b = psi4.core.Matrix.from_array(1.0 * Vxc)
 
-        return ks_e, Vxc_a, Vxc_b
+        return ks_e, Vxc_a, Vxc_b, ingredients
 
 
 class UMolecule(Molecule):
@@ -478,8 +481,6 @@ class UMolecule(Molecule):
     def get_xc(self, Da, Db):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
-        ks_e, Vxc_a, Vxc_b = u_xc(Da, Db, self.Vpot, ingredients=self.get_ingredients)
-        Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
-        Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
-
-        return ks_e, Vxc_a, Vxc_b
+        ks_e, Vxc_a, Vxc_b, ingredients = u_xc(Da, Db, self.Vpot, ingredients=self.get_ingredients)
+        
+        return ks_e, Vxc_a, Vxc_b, ingredients
