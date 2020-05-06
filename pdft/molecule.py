@@ -15,7 +15,7 @@ from .xc import u_xc
 class Molecule():
 
     def __init__(self, geometry, basis, method, 
-                 mints = None, jk = None, ingredients=False):
+                 mints = None, jk = None, get_ingredients=False):
         
         #basics
         self.geometry    = geometry
@@ -69,9 +69,10 @@ class Molecule():
         self.phi         = None
         self.Da_r        = None
         self.Db_r        = None
+        self.ingredients = None
 
         #Options
-        self.ingredients = ingredients
+        self.get_ingredients = get_ingredients
 
     def form_JK(self, K=True):
         """
@@ -219,20 +220,8 @@ class Molecule():
             if self.functional.is_c_hybrid() is True:
                 raise NameError("Correlation hybrids are not availiable")
 
-            #Restricted/Unrestricted
-            if self.restricted is True:
-                self.Vpot.set_D([Da])
-                self.Vpot.properties()[0].set_pointers(Da)
-                ks_e, Vxc = xc(Da, self.Vpot, ingredients=self.ingredients)
-                #XC. Already scaled by alpha
-                Vxc_a = psi4.core.Matrix.from_array(1.0 * Vxc)
-                Vxc_b = psi4.core.Matrix.from_array(1.0 * Vxc)
-            elif self.restricted is False:
-                self.Vpot.set_D([Da, Db])
-                self.Vpot.properties()[0].set_pointers(Da, Db)    
-                ks_e, Vxc_a, Vxc_b = u_xc(Da, Db, self.Vpot, ingredients=self.ingredients)
-                Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
-                Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
+            #Exchange Correlation
+            ks_e, Vxc_a, Vxc_b = self.get_xc(Da, Db)
             Fa.axpy(1.0, Vxc_a)
             Fb.axpy(1.0, Vxc_b)
             Fa.axpy(1.0, vp_a)
@@ -453,8 +442,8 @@ class Molecule():
 
 class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, ingredients=False):
-        super().__init__(geometry, basis, method)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False):
+        super().__init__(geometry, basis, method, mints, jk, get_ingredients)
 
         self.restricted = True
 
@@ -463,10 +452,21 @@ class RMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
+    def get_xc(self, Da, Db):
+        self.Vpot.set_D([Da])
+        self.Vpot.properties()[0].set_pointers(Da)
+        ks_e, Vxc = xc(Da, self.Vpot, ingredients=self.get_ingredients)
+        #XC. Already scaled by alpha
+        Vxc_a = psi4.core.Matrix.from_array(1.0 * Vxc)
+        Vxc_b = psi4.core.Matrix.from_array(1.0 * Vxc)
+
+        return ks_e, Vxc_a, Vxc_b
+
+
 class UMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, ingredients=False):
-        super().__init__(geometry, basis, method)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False):
+        super().__init__(geometry, basis, method, mints, jk, get_ingredients)
 
         self.restricted = False
 
@@ -474,3 +474,12 @@ class UMolecule(Molecule):
         self.functional = functional_factory(self.method, self.restricted)
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
+
+    def get_xc(self, Da, Db):
+        self.Vpot.set_D([Da, Db])
+        self.Vpot.properties()[0].set_pointers(Da, Db)  
+        ks_e, Vxc_a, Vxc_b = u_xc(Da, Db, self.Vpot, ingredients=self.get_ingredients)
+        Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
+        Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
+
+        return ks_e, Vxc_a, Vxc_b
