@@ -81,9 +81,13 @@ def xc(D, Vpot, ingredients):
     dfa_ingredients = {"d"   : [], 
                        "d_x" : [],
                        "d_y" : [],
-                       "d_z" : [], 
+                       "d_z" : [],
+                       "d_xx" : [],
+                       "d_yy" : [],
+                       "d_zz" : [], 
                        "gamma" : [],
-                       "tau"  : []}
+                       "tau" : [], 
+                       "vxc" : []}
 
     grid = {"x" : [], "y" : [], "z" : [], "w" : []}
     func = Vpot.functional()
@@ -132,15 +136,22 @@ def xc(D, Vpot, ingredients):
         #meta components
         if points_func.ansatz() >= 2:
             tau = np.array(points_func.point_values()["TAU_A"])[:npoints]
+            d_xx = np.array(points_func.point_values()["RHO_XX"])[:npoints]
+            d_yy = np.array(points_func.point_values()["RHO_YY"])[:npoints]
+            d_zz = np.array(points_func.point_values()["RHO_ZZ"])[:npoints]
 
             if ingredients is True:
                 dfa_ingredients["tau"].append(tau)
+                dfa_ingredients["d_xx"].append(d_xx)
+                dfa_ingredients["d_yy"].append(d_yy)
+                dfa_ingredients["d_zz"].append(d_zz)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
+        dfa_ingredients["vxc"].append(vk)
         e_xc += np.einsum("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
@@ -206,11 +217,18 @@ def u_xc(D_a, D_b, Vpot, ingredients):
                        "db_x" : [],
                        "db_y" : [],
                        "db_z" : [],
+                       "l_ax"  : [],
+                       "l_ay"  : [],
+                       "l_az"  : [],
+                       "l_bx"  : [],
+                       "l_by"  : [],
+                       "l_bz"  : [],
                        "g_aa" : [],
                        "g_ab" : [],
                        "g_bb" : [],
                        "t_a"  : [],
-                       "t_b"  : []}
+                       "t_b"  : [], 
+                       "v_xc" : []}
     grid = {"x" : [], "y" : [], "z" : [], "w" : []}
 
     func = Vpot.functional()
@@ -247,6 +265,68 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             phi_y = np.array(points_func.basis_values()["PHI_Y"])[:npoints, :lpos.shape[0]]
             phi_z = np.array(points_func.basis_values()["PHI_Z"])[:npoints, :lpos.shape[0]]
 
+            phi_xx = np.array(points_func.basis_values()["PHI_XX"])[:npoints, :lpos.shape[0]]
+            phi_yy = np.array(points_func.basis_values()["PHI_YY"])[:npoints, :lpos.shape[0]]
+            phi_zz = np.array(points_func.basis_values()["PHI_ZZ"])[:npoints, :lpos.shape[0]]
+
+            Da_reshaped = D_a.np[(lpos[:, None], lpos)]
+            Db_reshaped = D_b.np[(lpos[:, None], lpos)]
+
+            #Laplacian
+
+            ###Laplacian with P4 matrices
+
+            #phi_p4 = psi4.core.Matrix.from_array(phi)
+
+            #phi_x_p4 = psi4.core.Matrix.from_array(phi_x)
+            #phi_y_p4 = psi4.core.Matrix.from_array(phi_y)
+            #phi_z_p4 = psi4.core.Matrix.from_array(phi_z)
+
+            #phi_xx_p4 = psi4.core.Matrix.from_array(phi_xx)
+            #phi_yy_p4 = psi4.core.Matrix.from_array(phi_yy)
+            #phi_zz_p4 = psi4.core.Matrix.from_array(phi_zz)
+
+            #Da_p4 = psi4.core.Matrix.from_array(Da_reshaped)
+            #Db_p4 = psi4.core.Matrix.from_array(Db_reshaped)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
+            dfa_ingredients["l_ax"].append(sandwich)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
+            dfa_ingredients["l_ay"].append(sandwich)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
+            dfa_ingredients["l_az"].append(sandwich)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
+            dfa_ingredients["l_bx"].append(sandwich)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
+            dfa_ingredients["l_by"].append(sandwich)
+
+            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
+            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z, optimize=True)
+            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
+            dfa_ingredients["l_bz"].append(sandwich)
+
+            # dfa_ingredients["l_ax"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
+            # dfa_ingredients["l_ay"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
+            # dfa_ingredients["l_az"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_z + phi, Da_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
+
+            # dfa_ingredients["l_bx"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_x + phi, Db_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
+            # dfa_ingredients["l_by"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_y + phi, Db_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
+            # dfa_ingredients["l_bz"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_z + phi, Db_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
+
             rho_ax = np.array(points_func.point_values()["RHO_AX"])[:npoints]
             rho_ay = np.array(points_func.point_values()["RHO_AY"])[:npoints]
             rho_az = np.array(points_func.point_values()["RHO_AZ"])[:npoints]
@@ -274,6 +354,9 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             tau_a = np.array(points_func.point_values()["TAU_A"])[:npoints]
             tau_b = np.array(points_func.point_values()["TAU_B"])[:npoints]
 
+            #lap_a = np.array(points_func.point_values()["LAPL_RHO_A"])[:npoints]
+            #lap_b = np.array(points_func.point_values()["LAPL_RHO_B"])[:npoints]
+
             if ingredients is True:
                 dfa_ingredients["t_a"].append(tau_a)
                 dfa_ingredients["t_b"].append(tau_b)
@@ -282,7 +365,8 @@ def u_xc(D_a, D_b, Vpot, ingredients):
         ret = func.compute_functional(points_func.point_values(), -1)
 
         #Compute the XC energy
-        vk = np.array(ret["V"])[:npoints]   
+        vk = np.array(ret["V"])[:npoints]
+        dfa_ingredients["v_xc"].append(vk)
         e_xc += np.einsum("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
