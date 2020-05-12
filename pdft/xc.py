@@ -175,7 +175,7 @@ def xc(D, Vpot, ingredients):
 
     return e_xc, Vnm, dfa_ingredients, grid
 
-def u_xc(D_a, D_b, Vpot, ingredients):
+def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -202,34 +202,58 @@ def u_xc(D_a, D_b, Vpot, ingredients):
     nbf = D_a.shape[0]    
     V_a = np.zeros((nbf, nbf))
     V_b = np.zeros((nbf, nbf))
+
+    density   = {"da" : [],
+                 "db" : []}
+
+    gradient  = {"da_x" : [], 
+                 "da_y" : [],
+                 "da_z" : [],
+                 "db_x" : [],
+                 "db_y" : [],
+                 "db_z" : []}
+
+    laplacian = {"la_x" : [],
+                 "la_y" : [],
+                 "la_z" : [],
+                 "lb_x" : [],
+                 "lb_y" : [],
+                 "lb_z" : []}
+
+    gamma    =  {"g_aa" : [],
+                 "g_ab" : [],
+                 "g_bb" : []}
+
+    tau       = {"tau_a" : [],
+                 "tau_b" : []}
+
+    vxc       = {"vxc" : []}
+
+    grid      = {"x" : [],
+                 "y" : [],
+                 "z" : [],
+                 "w" : []}
+
+    orbitals_a   = {}
+    orbitals_b   = {}
+    orbitals_a_nm  = {}
+    orbitals_b_nm  = {}
+
+    orb_a_tmp = []
+    orb_b_tmp = []
+
+    for orb_j in range(nbf):
+        orbitals_a[str(orb_j)]  = []
+        orbitals_b[str(orb_j)]  = []
+        orbitals_a_nm[str(orb_j)] = np.zeros((nbf, nbf))
+        orbitals_b_nm[str(orb_j)] = np.zeros((nbf, nbf))
+
     
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
     if ingredients is True:
         points_func.set_ansatz(2)
-
-    dfa_ingredients = {"da"   : [], 
-                       "db"   : [], 
-                       "da_x" : [],
-                       "da_y" : [],
-                       "da_z" : [], 
-                       "db_x" : [],
-                       "db_y" : [],
-                       "db_z" : [],
-                       "l_ax"  : [],
-                       "l_ay"  : [],
-                       "l_az"  : [],
-                       "l_bx"  : [],
-                       "l_by"  : [],
-                       "l_bz"  : [],
-                       "g_aa" : [],
-                       "g_ab" : [],
-                       "g_bb" : [],
-                       "t_a"  : [],
-                       "t_b"  : [], 
-                       "v_xc" : []}
-    grid = {"x" : [], "y" : [], "z" : [], "w" : []}
 
     func = Vpot.functional()
 
@@ -243,6 +267,7 @@ def u_xc(D_a, D_b, Vpot, ingredients):
         points_func.compute_points(block)
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
+
         grid["x"].append(np.array(block.x()))
         grid["y"].append(np.array(block.y()))
         grid["z"].append(np.array(block.z()))
@@ -251,13 +276,16 @@ def u_xc(D_a, D_b, Vpot, ingredients):
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
-            phi   = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+            phi     = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
             rho_a   = np.array(points_func.point_values()["RHO_A"])[:npoints]
             rho_b   = np.array(points_func.point_values()["RHO_B"])[:npoints]
 
+            #for orb_i in range(len(Ca.np))
+            #dfa_ingredients["phi"].append(phi)
+
             if ingredients is True:
-                dfa_ingredients["da"].append(rho_a)
-                dfa_ingredients["db"].append(rho_b)
+                density["da"].append(rho_a)
+                density["db"].append(rho_b)
 
         #GGA components
         if points_func.ansatz() >=1:
@@ -292,32 +320,32 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
-            dfa_ingredients["l_ax"].append(sandwich)
+            laplacian["la_x"].append(sandwich)
 
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
-            dfa_ingredients["l_ay"].append(sandwich)
+            laplacian["la_y"].append(sandwich)
 
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
-            dfa_ingredients["l_az"].append(sandwich)
+            laplacian["la_z"].append(sandwich)
 
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
-            dfa_ingredients["l_bx"].append(sandwich)
+            laplacian["lb_x"].append(sandwich)
 
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
-            dfa_ingredients["l_by"].append(sandwich)
+            laplacian["lb_y"].append(sandwich)
 
             sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
             sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z, optimize=True)
             sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
-            dfa_ingredients["l_bz"].append(sandwich)
+            laplacian["lb_z"].append(sandwich)
 
             # dfa_ingredients["l_ax"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
             # dfa_ingredients["l_ay"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
@@ -339,15 +367,15 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             gamma_bb = np.array(points_func.point_values()["GAMMA_BB"])[:npoints]
 
             if ingredients is True:
-                dfa_ingredients["da_x"].append(rho_ax)
-                dfa_ingredients["da_y"].append(rho_ay)
-                dfa_ingredients["da_z"].append(rho_az)
-                dfa_ingredients["db_x"].append(rho_bx)
-                dfa_ingredients["db_y"].append(rho_by)
-                dfa_ingredients["db_z"].append(rho_bz)
-                dfa_ingredients["g_aa"].append(gamma_aa)
-                dfa_ingredients["g_ab"].append(gamma_ab) 
-                dfa_ingredients["g_bb"].append(gamma_bb)
+                gradient["da_x"].append(rho_ax)
+                gradient["da_y"].append(rho_ay)
+                gradient["da_z"].append(rho_az)
+                gradient["db_x"].append(rho_bx)
+                gradient["db_y"].append(rho_by)
+                gradient["db_z"].append(rho_bz)
+                gamma["g_aa"].append(gamma_aa)
+                gamma["g_ab"].append(gamma_ab) 
+                gamma["g_bb"].append(gamma_bb)
 
         #meta components
         if points_func.ansatz() >= 2:
@@ -358,15 +386,15 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             #lap_b = np.array(points_func.point_values()["LAPL_RHO_B"])[:npoints]
 
             if ingredients is True:
-                dfa_ingredients["t_a"].append(tau_a)
-                dfa_ingredients["t_b"].append(tau_b)
+                tau["tau_a"].append(tau_a)
+                tau["tau_b"].append(tau_b)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        dfa_ingredients["v_xc"].append(vk)
+        vxc["vxc"].append(vk)
         e_xc += np.einsum("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
@@ -374,6 +402,18 @@ def u_xc(D_a, D_b, Vpot, ingredients):
 
         Vtmp_a = 1.0 * np.einsum('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
         Vtmp_b = 1.0 * np.einsum('pb,p,p,pa->ab', phi, v_rho_b, w, phi, optimize=True)
+
+        #Compute orbitals
+        for i_orb in range(nbf):
+
+            orb_a = np.einsum('nm,pm->np', Ca.np[None,i_orb], phi, optimize=True)[0,:]
+            orb_b = np.einsum('nm,pm->np', Cb.np[None,i_orb], phi, optimize=True)[0,:]
+
+            orbitals_a[str(i_orb)].append(orb_a)
+            orbitals_b[str(i_orb)].append(orb_b)
+
+            orb_a_tmp.append(1.0 * np.einsum('pb,p,p,pa->ab', phi, orb_a, w, phi, optimize=True))
+            orb_b_tmp.append(1.0 * np.einsum('pb,p,p,pa->ab', phi, orb_b, w, phi, optimize=True))
 
         if func.is_gga() is True:
 
@@ -397,7 +437,6 @@ def u_xc(D_a, D_b, Vpot, ingredients):
             Vtmp_b += np.einsum('pb, p, pa->ab', phi_y, yb, phi, optimize=True)
             Vtmp_b += np.einsum('pb, p, pa->ab', phi_z, zb, phi, optimize=True)
 
-
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
             v_tau_b = np.array(ret["V_TAU_B"])[:npoints]
@@ -414,5 +453,21 @@ def u_xc(D_a, D_b, Vpot, ingredients):
         V_a[(lpos[:, None], lpos)] += 0.5 * (Vtmp_a + Vtmp_a.T)
         V_b[(lpos[:, None], lpos)] += 0.5 * (Vtmp_b + Vtmp_b.T)
 
+        for orb_j in range(nbf):
+            orbitals_a_nm[str(orb_j)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp[orb_j] + orb_a_tmp[orb_j].T)
+            orbitals_b_nm[str(orb_j)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp[orb_j] + orb_b_tmp[orb_j].T)
+
+
+    dfa_ingredients = {"density"  : density,
+                       "gradient" : gradient,
+                       "laplacian": laplacian,
+                       "gamma"    : gamma,
+                       "tau"      : tau,
+                       "vxc"      : vxc,
+                       "grid"     : grid,
+                       "orbitals_a" : orbitals_a,
+                       "orbitals_b" : orbitals_b,
+                       "orbitals_a_nm" : orbitals_a_nm,
+                       "orbitals_b_nm" : orbitals_b_nm}
 
     return e_xc, V_a, V_b, dfa_ingredients, grid

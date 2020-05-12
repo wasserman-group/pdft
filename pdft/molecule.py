@@ -1,6 +1,6 @@
 """
 
-supermolecule.py
+Molecule.py
 Defitions for molecule class
 
 """
@@ -222,7 +222,7 @@ class Molecule():
                 raise NameError("Correlation hybrids are not availiable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db)
+            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca, Cb)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
@@ -293,8 +293,8 @@ class Molecule():
         self.Ca, self.Cb          = Ca, Cb
         self.Cocca, self.Coccb    = Cocca, Coccb
         self.eigs_a, self.eigs_b  = eigs_a, eigs_b
-        #self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
-        #self.Db_r, _              = self.basis_to_grid(self.Db.np) 
+        self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
+        self.Db_r, _              = self.basis_to_grid(self.Db.np) 
         
 
         if vp_mn is None:
@@ -452,7 +452,10 @@ class RMolecule(Molecule):
         self.restricted = True
 
         #Psi4 objects 
-        self.functional = functional_factory(self.method, self.restricted)
+        if get_ingredients is True:
+            self.functional = functional_factory(self.method, self.restricted, deriv=2)
+        else:
+            self.functional = functional_factory(self.method, self.restricted, deriv=1)
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
@@ -460,11 +463,8 @@ class RMolecule(Molecule):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
         ks_e, Vxc, ingredients, grid = xc(Da, self.Vpot, ingredients=self.get_ingredients)
-        #XC already scaled by alpha
-        Vxc_a = psi4.core.Matrix.from_array(1.0 * Vxc)
-        Vxc_b = psi4.core.Matrix.from_array(1.0 * Vxc)
 
-        return ks_e, Vxc_a, Vxc_b, ingredients, grid
+        return ks_e, Vxc, Vxc, ingredients, grid
 
 class UMolecule(Molecule):
 
@@ -474,13 +474,16 @@ class UMolecule(Molecule):
         self.restricted = False
 
         #Psi4 objects 
-        self.functional = functional_factory(self.method, self.restricted)
+        if get_ingredients == True:
+            self.functional = functional_factory(self.method, self.restricted, deriv=2)
+        else:
+            self.functional = functional_factory(self.method, self.restricted, deriv=1)
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db):
+    def get_xc(self, Da, Db, Ca, Cb):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
-        ks_e, Vxc_a, Vxc_b, ingredients, grid = u_xc(Da, Db, self.Vpot, ingredients=self.get_ingredients)
+        ks_e, Vxc_a, Vxc_b, ingredients, grid = u_xc(Da, Db, Ca, Cb, self.Vpot, ingredients=self.get_ingredients)
         
         return ks_e, Vxc_a, Vxc_b, ingredients, grid
