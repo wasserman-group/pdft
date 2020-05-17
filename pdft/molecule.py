@@ -5,6 +5,8 @@ Defitions for molecule class
 
 """
 import numpy as np
+from opt_einsum import contract
+
 import matplotlib.pyplot as plt
 import psi4
 
@@ -219,7 +221,7 @@ class Molecule():
 
             #Correlation Hybrid?
             if self.functional.is_c_hybrid() is True:
-                raise NameError("Correlation hybrids are not availiable")
+                raise NameError("Correlation hybrids are not avaliable")
 
             #Exchange Correlation
             ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca, Cb)
@@ -362,7 +364,7 @@ class Molecule():
             phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
             
             l_mat = mat[(lpos[:, None], lpos)]
-            mat_r = np.einsum('pm,mn,pn->p', phi, l_mat, phi, optimize=True)
+            mat_r = contract('pm,mn,pn->p', phi, l_mat, phi)
             frag_mat.append(mat_r[:l_npoints])
             #frag_mat.append(mat_r)
 

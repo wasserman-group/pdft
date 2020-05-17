@@ -1,5 +1,6 @@
 import psi4
 import numpy as np
+from opt_einsum import contract
 
 
 def functional_factory(method, restricted, deriv=1, points=500000):
@@ -152,22 +153,22 @@ def xc(D, Vpot, ingredients):
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
         dfa_ingredients["vxc"].append(vk)
-        e_xc += np.einsum("a,a->", w, vk, optimize=True)
+        e_xc += contract("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
-        Vtmp = np.einsum('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
+        Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
-            Vtmp += 2.0 *np.einsum('pb,p,p,p,pa->ab', phi_x, v_gamma_aa, rho_x, w, phi, optimize=True)
-            Vtmp += 2.0 *np.einsum('pb,p,p,p,pa->ab', phi_y, v_gamma_aa, rho_y, w, phi, optimize=True)
-            Vtmp += 2.0 *np.einsum('pb,p,p,p,pa->ab', phi_z, v_gamma_aa, rho_z, w, phi, optimize=True)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_x, v_gamma_aa, rho_x, w, phi, optimize=True)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_y, v_gamma_aa, rho_y, w, phi, optimize=True)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_z, v_gamma_aa, rho_z, w, phi, optimize=True)
 
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
-            Vtmp += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x, optimize=True)
-            Vtmp += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y, optimize=True)
-            Vtmp += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z, optimize=True)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x, optimize=True)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y, optimize=True)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z, optimize=True)
 
         # Sum back to the correct place
         Vnm[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
@@ -317,43 +318,43 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
             #Da_p4 = psi4.core.Matrix.from_array(Da_reshaped)
             #Db_p4 = psi4.core.Matrix.from_array(Db_reshaped)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
             laplacian["la_x"].append(sandwich)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
             laplacian["la_y"].append(sandwich)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
             laplacian["la_z"].append(sandwich)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
             laplacian["lb_x"].append(sandwich)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
             laplacian["lb_y"].append(sandwich)
 
-            sandwich  = np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
-            sandwich += 2* np.einsum('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z, optimize=True)
-            sandwich += np.einsum('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
+            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
+            sandwich += 2* contract('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z, optimize=True)
+            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
             laplacian["lb_z"].append(sandwich)
 
-            # dfa_ingredients["l_ax"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
-            # dfa_ingredients["l_ay"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
-            # dfa_ingredients["l_az"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_z + phi, Da_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
+            # dfa_ingredients["l_ax"].append(contract('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
+            # dfa_ingredients["l_ay"].append(contract('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
+            # dfa_ingredients["l_az"].append(contract('pm, mn, pn ->p', phi + 2 * phi_z + phi, Da_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
 
-            # dfa_ingredients["l_bx"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_x + phi, Db_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
-            # dfa_ingredients["l_by"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_y + phi, Db_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
-            # dfa_ingredients["l_bz"].append(np.einsum('pm, mn, pn ->p', phi + 2 * phi_z + phi, Db_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
+            # dfa_ingredients["l_bx"].append(contract('pm, mn, pn ->p', phi + 2 * phi_x + phi, Db_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
+            # dfa_ingredients["l_by"].append(contract('pm, mn, pn ->p', phi + 2 * phi_y + phi, Db_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
+            # dfa_ingredients["l_bz"].append(contract('pm, mn, pn ->p', phi + 2 * phi_z + phi, Db_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
 
             rho_ax = np.array(points_func.point_values()["RHO_AX"])[:npoints]
             rho_ay = np.array(points_func.point_values()["RHO_AY"])[:npoints]
@@ -395,25 +396,25 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
         vxc["vxc"].append(vk)
-        e_xc += np.einsum("a,a->", w, vk, optimize=True)
+        e_xc += contract("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
         v_rho_b = np.array(ret["V_RHO_B"])[:npoints]   
 
-        Vtmp_a = 1.0 * np.einsum('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
-        Vtmp_b = 1.0 * np.einsum('pb,p,p,pa->ab', phi, v_rho_b, w, phi, optimize=True)
+        Vtmp_a = 1.0 * contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
+        Vtmp_b = 1.0 * contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi, optimize=True)
 
         #Compute orbitals
         for i_orb in range(nbf):
 
-            orb_a = np.einsum('nm,pm->np', Ca.np[None,i_orb], phi, optimize=True)[0,:]
-            orb_b = np.einsum('nm,pm->np', Cb.np[None,i_orb], phi, optimize=True)[0,:]
+            orb_a = contract('nm,pm->np', Ca.np[None,i_orb], phi, optimize=True)[0,:]
+            orb_b = contract('nm,pm->np', Cb.np[None,i_orb], phi, optimize=True)[0,:]
 
             orbitals_a[str(i_orb)].append(orb_a)
             orbitals_b[str(i_orb)].append(orb_b)
 
-            orb_a_tmp.append(1.0 * np.einsum('pb,p,p,pa->ab', phi, orb_a, w, phi, optimize=True))
-            orb_b_tmp.append(1.0 * np.einsum('pb,p,p,pa->ab', phi, orb_b, w, phi, optimize=True))
+            orb_a_tmp.append(1.0 * contract('pb,p,p,pa->ab', phi, orb_a, w, phi, optimize=True))
+            orb_b_tmp.append(1.0 * contract('pb,p,p,pa->ab', phi, orb_b, w, phi, optimize=True))
 
         if func.is_gga() is True:
 
@@ -429,25 +430,25 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
             yb = 2.0 * w * (v_gamma_bb * rho_by + v_gamma_ab * rho_ay)
             zb = 2.0 * w * (v_gamma_bb * rho_bz + v_gamma_ab * rho_az)
 
-            Vtmp_a += np.einsum('pb, p, pa->ab', phi_x, xa, phi, optimize=True)
-            Vtmp_a += np.einsum('pb, p, pa->ab', phi_y, ya, phi, optimize=True)
-            Vtmp_a += np.einsum('pb, p, pa->ab', phi_z, za, phi, optimize=True)
+            Vtmp_a += contract('pb, p, pa->ab', phi_x, xa, phi, optimize=True)
+            Vtmp_a += contract('pb, p, pa->ab', phi_y, ya, phi, optimize=True)
+            Vtmp_a += contract('pb, p, pa->ab', phi_z, za, phi, optimize=True)
 
-            Vtmp_b += np.einsum('pb, p, pa->ab', phi_x, xb, phi, optimize=True)
-            Vtmp_b += np.einsum('pb, p, pa->ab', phi_y, yb, phi, optimize=True)
-            Vtmp_b += np.einsum('pb, p, pa->ab', phi_z, zb, phi, optimize=True)
+            Vtmp_b += contract('pb, p, pa->ab', phi_x, xb, phi, optimize=True)
+            Vtmp_b += contract('pb, p, pa->ab', phi_y, yb, phi, optimize=True)
+            Vtmp_b += contract('pb, p, pa->ab', phi_z, zb, phi, optimize=True)
 
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
             v_tau_b = np.array(ret["V_TAU_B"])[:npoints]
 
-            Vtmp_a += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x, optimize=True)
-            Vtmp_a += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y, optimize=True)
-            Vtmp_a += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z, optimize=True)
+            Vtmp_a += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x, optimize=True)
+            Vtmp_a += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y, optimize=True)
+            Vtmp_a += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z, optimize=True)
     
-            Vtmp_b += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_x, v_tau_b, w, phi_x, optimize=True)
-            Vtmp_b += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_y, v_tau_b, w, phi_y, optimize=True)
-            Vtmp_b += 0.5 * np.einsum( 'pb, p, p, pa -> ab' , phi_z, v_tau_b, w, phi_z, optimize=True)
+            Vtmp_b += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_x, v_tau_b, w, phi_x, optimize=True)
+            Vtmp_b += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_b, w, phi_y, optimize=True)
+            Vtmp_b += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_b, w, phi_z, optimize=True)
 
         # Sum back to the correct place
         V_a[(lpos[:, None], lpos)] += 0.5 * (Vtmp_a + Vtmp_a.T)
