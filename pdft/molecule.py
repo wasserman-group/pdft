@@ -224,7 +224,7 @@ class Molecule():
                 raise NameError("Correlation hybrids are not avaliable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca, Cb)
+            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
