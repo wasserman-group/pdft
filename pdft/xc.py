@@ -44,7 +44,7 @@ def functional_factory(method, restricted, deriv=1, points=500000):
     
     return functional[0]
 
-def xc(D, Vpot, ingredients):
+def xc(D, C, Vpot, ingredients):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation
@@ -240,16 +240,12 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
     orbitals_a_mn  = {}
     orbitals_b_mn  = {}
 
-    #orb_a_tmp = []
-    #orb_b_tmp = []
-
     for orb_j in range(nbf):
         orbitals_a[str(orb_j)]  = []
         orbitals_b[str(orb_j)]  = []
         orbitals_a_mn[str(orb_j)] = np.zeros((nbf, nbf))
         orbitals_b_mn[str(orb_j)] = np.zeros((nbf, nbf))
 
-    
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
@@ -299,22 +295,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
             Db_reshaped = D_b.np[(lpos[:, None], lpos)]
 
             #Laplacian
-
-            ###Laplacian with P4 matrices
-
-            #phi_p4 = psi4.core.Matrix.from_array(phi)
-
-            #phi_x_p4 = psi4.core.Matrix.from_array(phi_x)
-            #phi_y_p4 = psi4.core.Matrix.from_array(phi_y)
-            #phi_z_p4 = psi4.core.Matrix.from_array(phi_z)
-
-            #phi_xx_p4 = psi4.core.Matrix.from_array(phi_xx)
-            #phi_yy_p4 = psi4.core.Matrix.from_array(phi_yy)
-            #phi_zz_p4 = psi4.core.Matrix.from_array(phi_zz)
-
-            #Da_p4 = psi4.core.Matrix.from_array(Da_reshaped)
-            #Db_p4 = psi4.core.Matrix.from_array(Db_reshaped)
-
             sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
             sandwich += 2* contract('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
             sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
@@ -398,7 +378,7 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
         Vtmp_a = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
         Vtmp_b = contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi)
 
-        #Compute orbitals
+        # #Compute orbitals
         for i_orb in range(nbf):
             #Orbitals on the Grid
             Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
