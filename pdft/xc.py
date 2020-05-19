@@ -380,19 +380,19 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
 
         # #Compute orbitals
         for i_orb in range(nbf):
-            #Orbitals on the Grid
-            Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
-            Cb_i = Cb.copy()[:lpos.shape[0], i_orb][None]
-            orb_a = contract('nm,pm->np', Ca_i, phi)[0,:npoints]
-            orb_b = contract('nm,pm->np', Cb_i, phi)[0,:npoints]
-            orbitals_a[str(i_orb)].append(orb_a)
-            orbitals_b[str(i_orb)].append(orb_b)
+            # #Orbitals on the Grid
+            # Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
+            # Cb_i = Cb.copy()[:lpos.shape[0], i_orb][None]
+            # orb_a = contract('nm,pm->np', Ca_i, phi)[0,:npoints]
+            # orb_b = contract('nm,pm->np', Cb_i, phi)[0,:npoints]
+            # orbitals_a[str(i_orb)].append(orb_a)
+            # orbitals_b[str(i_orb)].append(orb_b)
 
-            #Each of the Molecular Orbitals on AO Basis
-            orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
-            orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
-            orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-            orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
+            # #Each of the Molecular Orbitals on AO Basis
+            # orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
+            # orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
+            # orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
+            # orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
