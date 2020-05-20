@@ -461,10 +461,10 @@ class RMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb, ingredients):
+    def get_xc(self, Da, Db, Ca, Cb, ingredients, orbitals):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc, ingredients, grid = xc(Da, Ca, self.Vpot, ingredients)
+        ks_e, Vxc, ingredients, grid = xc(Da, Ca, self.Vpot, ingredients, orbitals)
 
         return ks_e, Vxc, Vxc, ingredients, grid
 

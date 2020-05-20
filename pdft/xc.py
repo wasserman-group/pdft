@@ -44,7 +44,7 @@ def functional_factory(method, restricted, deriv=1, points=500000):
     
     return functional[0]
 
-def xc(D, C, Vpot, ingredients):
+def xc(D, C, Vpot, ingredients, orbitals):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation
@@ -72,25 +72,56 @@ def xc(D, C, Vpot, ingredients):
 
     nbf = D.shape[0]    
     Vnm = np.zeros((nbf, nbf))
-    
     total_e = 0.0
+
+    # dfa_ingredients = {"d"   : [], 
+    #                    "d_x" : [],
+    #                    "d_y" : [],
+    #                    "d_z" : [],
+    #                    "d_xx" : [],
+    #                    "d_yy" : [],
+    #                    "d_zz" : [], 
+    #                    "gamma" : [],
+    #                    "tau" : [], 
+    #                    "vxc" : []}
+
+    density   = {"da" : [],
+                 "db" : []}
+
+    gradient  = {"da_x" : [], 
+                 "da_y" : [],
+                 "da_z" : [],
+                 "db_x" : [],
+                 "db_y" : [],
+                 "db_z" : []}
+
+    laplacian = {"la_x" : [],
+                 "la_y" : [],
+                 "la_z" : [],
+                 "lb_x" : [],
+                 "lb_y" : [],
+                 "lb_z" : []}
+
+    gamma    =  {"g_aa" : [],
+                 "g_ab" : [],
+                 "g_bb" : []}
+
+    tau       = {"tau_a" : [],
+                 "tau_b" : []}
+
+    vxc       = {"vxc" : []}
+
+    grid      = {"x" : [],
+                 "y" : [],
+                 "z" : [],
+                 "w" : []}
+
+    orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
+    orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
     
     points_func = Vpot.properties()[0]
     if ingredients is True:
         points_func.set_ansatz(2)
-
-    dfa_ingredients = {"d"   : [], 
-                       "d_x" : [],
-                       "d_y" : [],
-                       "d_z" : [],
-                       "d_xx" : [],
-                       "d_yy" : [],
-                       "d_zz" : [], 
-                       "gamma" : [],
-                       "tau" : [], 
-                       "vxc" : []}
-
-    grid = {"x" : [], "y" : [], "z" : [], "w" : []}
     func = Vpot.functional()
 
     e_xc = 0.0
@@ -103,11 +134,14 @@ def xc(D, C, Vpot, ingredients):
         points_func.compute_points(block)
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
-        grid["x"].append(np.array(block.x()))
-        grid["y"].append(np.array(block.y()))
-        grid["z"].append(np.array(block.z()))
         w = np.array(block.w())
-        grid["w"].append(w)
+
+        #Store Grid
+        if ingredients is True:
+            grid["x"].append(np.array(block.x()))
+            grid["y"].append(np.array(block.y()))
+            grid["z"].append(np.array(block.z()))
+            grid["w"].append(w)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -116,7 +150,19 @@ def xc(D, C, Vpot, ingredients):
 
             if ingredients is True:
                 dfa_ingredients["d"].append(rho)
-                
+
+        #Compute Orbitals
+        if orbitals is True:
+            Ca_local = C[(lpos[:, None], lpos)]
+            orb_a = contract('nm, pm -> np', Ca_local.T, phi)
+
+            #Each of the Molecular Orbitals on AO Basis
+            for j, i_pos in enumerate(lpos):
+                orbitals_a[str(i_pos)].append(orb_a[j])
+                orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a[j], w, phi)
+                orbitals_a_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
+
+
         #GGA components
         if points_func.ansatz() >= 1:
             phi_x =  np.array(points_func.basis_values()["PHI_X"])[:npoints, :lpos.shape[0]]
@@ -129,10 +175,10 @@ def xc(D, C, Vpot, ingredients):
             gamma = np.array(points_func.point_values()["GAMMA_AA"])[:npoints]
 
             if ingredients is True:
-                dfa_ingredients["d_x"].append(rho_x)
-                dfa_ingredients["d_y"].append(rho_y)
-                dfa_ingredients["d_z"].append(rho_z)
-                dfa_ingredients["gamma"].append(gamma)
+                gradient["d_x"].append(rho_x)
+                gradient["d_y"].append(rho_y)
+                gradient["d_z"].append(rho_z)
+                gamma["g_aa"].append(gamma)
 
         #meta components
         if points_func.ansatz() >= 2:
@@ -142,17 +188,17 @@ def xc(D, C, Vpot, ingredients):
             d_zz = np.array(points_func.point_values()["RHO_ZZ"])[:npoints]
 
             if ingredients is True:
-                dfa_ingredients["tau"].append(tau)
-                dfa_ingredients["d_xx"].append(d_xx)
-                dfa_ingredients["d_yy"].append(d_yy)
-                dfa_ingredients["d_zz"].append(d_zz)
+                tau["tau_a"].append(tau)
+                laplacian["d_xx"].append(d_xx)
+                laplacian["d_yy"].append(d_yy)
+                laplacian["d_zz"].append(d_zz)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        dfa_ingredients["vxc"].append(vk)
+        vxc["vxc"].append(vk)
         e_xc += contract("a,a->", w, vk, optimize=True)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
@@ -173,6 +219,17 @@ def xc(D, C, Vpot, ingredients):
         # Sum back to the correct place
         Vnm[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
+    dfa_ingredients = {"density"  : density,
+                       "gradient" : gradient,
+                       "laplacian": laplacian,
+                       "gamma"    : gamma,
+                       "tau"      : tau,
+                       "vxc"      : vxc,
+                       "grid"     : grid,
+                       "orbitals_a" : orbitals_a,
+                       "orbitals_b" : orbitals_a,
+                       "orbitals_a_mn" : orbitals_a_mn,
+                       "orbitals_b_mn" : orbitals_a_mn}
 
     return e_xc, Vnm, dfa_ingredients, grid
 
@@ -237,8 +294,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
 
     orbitals_a   = {}
     orbitals_b   = {}
-    full_orbitals_a = []
-    full_orbitals_b = [] 
     orbitals_a_mn  = {}
     orbitals_b_mn  = {}
 
@@ -283,55 +338,22 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                 density["da"].append(rho_a)
                 density["db"].append(rho_b)
 
-        v_orbitals = np.array((nbf, npoints))
-
         #Compute Orbitals:
         if orbitals is True:
 
-            #Ca_local = np.zeros_like(Ca)
-            #Cb_local = np.zeros_like(Cb)
-
-            # print("Ca local shape", Ca_local.shape)
-            #print("phi shape", phi.shape)
-            print("lpos", lpos)
-            print("lpos shape", lpos.shape[0])
-
-            #print("Shape of Ca_local", Ca_local.shape)
-            #print("phi shape", phi.shape)
-
-            #for ml in range(lpos.shape[0]):
-            #    mg = lpos[ml]
-            #    Ca_local[ml] = Ca[mg]
-            #    Cb_local[ml] = Cb[mg] 
-
             Ca_local = Ca[(lpos[:, None], lpos)]
             Cb_local = Cb[(lpos[:, None], lpos)]
+            orb_a = contract('nm, pm -> np', Ca_local.T, phi)
+            orb_b = contract('nm, pm -> np', Cb_local.T, phi)
 
-            orb_a = contract('nm, pm -> np', Ca_local, phi)
-            orb_b = contract('nm, pm -> np', Cb_local, phi)
-            full_orbitals_a.append(orb_a)
-            full_orbitals_b.append(orb_b)
-
-            for i_orb in range(nbf):
-                for i_pos in lpos:
-                    if i_orb == i_pos:
-                        orbitals_a[str(i_orb)].append(orb_a[i_orb])
-                        orbitals_b[str(i_orb)].append(orb_b[i_orb])
-
-            # for i_orb in range(nbf):
-            #     #Orbitals on the Grid
-            #     Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
-            #     Cb_i = Cb.copy()[:lpos.shape[0], i_orb][None]
-            #     orb_a = contract('nm,pm->np', Ca_i, phi)[0,:npoints]
-            #     orb_b = contract('nm,pm->np', Cb_i, phi)[0,:npoints]
-            #     orbitals_a[str(i_orb)].append(orb_a)
-            #     orbitals_b[str(i_orb)].append(orb_b)
-
-            #     #Each of the Molecular Orbitals on AO Basis
-            #     orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
-            #     orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
-            #     orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-            #     orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
+            #Each of the Molecular Orbitals on AO Basis
+            for j, i_pos in enumerate(lpos):
+                orbitals_a[str(i_pos)].append(orb_a[j])
+                orbitals_b[str(i_pos)].append(orb_b[j])
+                orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a[j], w, phi)
+                orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b[j], w, phi)
+                orbitals_a_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
+                orbitals_b_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
 
 
         #GGA components
@@ -343,14 +365,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
             phi_xx = np.array(points_func.basis_values()["PHI_XX"])[:npoints, :lpos.shape[0]]
             phi_yy = np.array(points_func.basis_values()["PHI_YY"])[:npoints, :lpos.shape[0]]
             phi_zz = np.array(points_func.basis_values()["PHI_ZZ"])[:npoints, :lpos.shape[0]]
-
-            # dfa_ingredients["l_ax"].append(contract('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
-            # dfa_ingredients["l_ay"].append(contract('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
-            # dfa_ingredients["l_az"].append(contract('pm, mn, pn ->p', phi + 2 * phi_z + phi, Da_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
-
-            # dfa_ingredients["l_bx"].append(contract('pm, mn, pn ->p', phi + 2 * phi_x + phi, Db_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
-            # dfa_ingredients["l_by"].append(contract('pm, mn, pn ->p', phi + 2 * phi_y + phi, Db_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
-            # dfa_ingredients["l_bz"].append(contract('pm, mn, pn ->p', phi + 2 * phi_z + phi, Db_reshaped,  phi_zz + phi_x + phi_zz, optimize=True))
 
             rho_ax = np.array(points_func.point_values()["RHO_AX"])[:npoints]
             rho_ay = np.array(points_func.point_values()["RHO_AY"])[:npoints]
