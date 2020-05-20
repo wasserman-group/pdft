@@ -17,7 +17,7 @@ from .xc import u_xc
 class Molecule():
 
     def __init__(self, geometry, basis, method, 
-                 mints = None, jk = None, get_ingredients=False):
+                 mints = None, jk = None, get_ingredients=False, get_orbitals=False):
         
         #basics
         self.geometry    = geometry
@@ -76,6 +76,7 @@ class Molecule():
 
         #Options
         self.get_ingredients = get_ingredients
+        self.get_orbitals    = get_orbitals
 
     def form_JK(self, K=True):
         """
@@ -135,9 +136,6 @@ class Molecule():
         Cp = psi4.core.Matrix(nbf, nbf)
         eigvecs = psi4.core.Vector(nbf)
         Fp.diagonalize(Cp, eigvecs, psi4.core.DiagonalizeOrder.Ascending)
-
-        C_ort = Cp
-
         C = psi4.core.doublet(self.A, Cp, False, False)
 
         Cocc = psi4.core.Matrix(nbf, ndocc)
@@ -224,7 +222,7 @@ class Molecule():
                 raise NameError("Correlation hybrids are not avaliable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np)
+            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np, ingredients=False, orbitals=False)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
@@ -279,6 +277,8 @@ class Molecule():
             #Diagonalize Fock matrix
             Ca, Cocca, Da, eigs_a = self.build_orbitals(Fa, self.nalpha)
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
+
+        ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np, ingredients=self.get_ingredients, orbitals=self.get_orbitals)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
@@ -448,8 +448,8 @@ class Molecule():
 
 class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False):
-        super().__init__(geometry, basis, method, mints, jk, get_ingredients)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, mints, jk, get_ingredients, get_orbitals)
 
         self.restricted = True
 
@@ -461,17 +461,17 @@ class RMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb):
+    def get_xc(self, Da, Db, Ca, Cb, ingredients):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc, ingredients, grid = xc(Da, Ca, self.Vpot, ingredients=self.get_ingredients)
+        ks_e, Vxc, ingredients, grid = xc(Da, Ca, self.Vpot, ingredients)
 
         return ks_e, Vxc, Vxc, ingredients, grid
 
 class UMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False):
-        super().__init__(geometry, basis, method, mints, jk, get_ingredients)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, mints, jk, get_ingredients, get_orbitals)
 
         self.restricted = False
 
@@ -483,9 +483,9 @@ class UMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb):
+    def get_xc(self, Da, Db, Ca, Cb, ingredients, orbitals):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
-        ks_e, Vxc_a, Vxc_b, ingredients, grid = u_xc(Da, Db, Ca, Cb, self.Vpot, ingredients=self.get_ingredients)
+        ks_e, Vxc_a, Vxc_b, ingredients, grid = u_xc(Da, Db, Ca, Cb, self.Vpot, ingredients, orbitals)
         
         return ks_e, Vxc_a, Vxc_b, ingredients, grid

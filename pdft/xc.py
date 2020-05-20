@@ -176,7 +176,7 @@ def xc(D, C, Vpot, ingredients):
 
     return e_xc, Vnm, dfa_ingredients, grid
 
-def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
+def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -237,6 +237,8 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
 
     orbitals_a   = {}
     orbitals_b   = {}
+    full_orbitals_a = []
+    full_orbitals_b = [] 
     orbitals_a_mn  = {}
     orbitals_b_mn  = {}
 
@@ -253,7 +255,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
         points_func.set_ansatz(2)
 
     func = Vpot.functional()
-
     e_xc = 0.0
     
     # First loop over the outer set of blocks
@@ -265,11 +266,12 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
 
-        grid["x"].append(np.array(block.x()))
-        grid["y"].append(np.array(block.y()))
-        grid["z"].append(np.array(block.z()))
         w = np.array(block.w())
-        grid["w"].append(w)
+        if ingredients is True:
+            grid["x"].append(np.array(block.x()))
+            grid["y"].append(np.array(block.y()))
+            grid["z"].append(np.array(block.z()))
+            grid["w"].append(w)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -281,6 +283,57 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
                 density["da"].append(rho_a)
                 density["db"].append(rho_b)
 
+        v_orbitals = np.array((nbf, npoints))
+
+        #Compute Orbitals:
+        if orbitals is True:
+
+            #Ca_local = np.zeros_like(Ca)
+            #Cb_local = np.zeros_like(Cb)
+
+            # print("Ca local shape", Ca_local.shape)
+            #print("phi shape", phi.shape)
+            print("lpos", lpos)
+            print("lpos shape", lpos.shape[0])
+
+            #print("Shape of Ca_local", Ca_local.shape)
+            #print("phi shape", phi.shape)
+
+            #for ml in range(lpos.shape[0]):
+            #    mg = lpos[ml]
+            #    Ca_local[ml] = Ca[mg]
+            #    Cb_local[ml] = Cb[mg] 
+
+            Ca_local = Ca[(lpos[:, None], lpos)]
+            Cb_local = Cb[(lpos[:, None], lpos)]
+
+            orb_a = contract('nm, pm -> np', Ca_local, phi)
+            orb_b = contract('nm, pm -> np', Cb_local, phi)
+            full_orbitals_a.append(orb_a)
+            full_orbitals_b.append(orb_b)
+
+            for i_orb in range(nbf):
+                for i_pos in lpos:
+                    if i_orb == i_pos:
+                        orbitals_a[str(i_orb)].append(orb_a[i_orb])
+                        orbitals_b[str(i_orb)].append(orb_b[i_orb])
+
+            # for i_orb in range(nbf):
+            #     #Orbitals on the Grid
+            #     Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
+            #     Cb_i = Cb.copy()[:lpos.shape[0], i_orb][None]
+            #     orb_a = contract('nm,pm->np', Ca_i, phi)[0,:npoints]
+            #     orb_b = contract('nm,pm->np', Cb_i, phi)[0,:npoints]
+            #     orbitals_a[str(i_orb)].append(orb_a)
+            #     orbitals_b[str(i_orb)].append(orb_b)
+
+            #     #Each of the Molecular Orbitals on AO Basis
+            #     orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
+            #     orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
+            #     orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
+            #     orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
+
+
         #GGA components
         if points_func.ansatz() >=1:
             phi_x = np.array(points_func.basis_values()["PHI_X"])[:npoints, :lpos.shape[0]]
@@ -290,40 +343,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
             phi_xx = np.array(points_func.basis_values()["PHI_XX"])[:npoints, :lpos.shape[0]]
             phi_yy = np.array(points_func.basis_values()["PHI_YY"])[:npoints, :lpos.shape[0]]
             phi_zz = np.array(points_func.basis_values()["PHI_ZZ"])[:npoints, :lpos.shape[0]]
-
-            Da_reshaped = D_a.np[(lpos[:, None], lpos)]
-            Db_reshaped = D_b.np[(lpos[:, None], lpos)]
-
-            #Laplacian
-            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx, optimize=True)
-            laplacian["la_x"].append(sandwich)
-
-            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy, optimize=True)
-            laplacian["la_y"].append(sandwich)
-
-            sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz, optimize=True)
-            laplacian["la_z"].append(sandwich)
-
-            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx, optimize=True)
-            laplacian["lb_x"].append(sandwich)
-
-            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy, optimize=True)
-            laplacian["lb_y"].append(sandwich)
-
-            sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
-            sandwich += 2* contract('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z, optimize=True)
-            sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz, optimize=True)
-            laplacian["lb_z"].append(sandwich)
 
             # dfa_ingredients["l_ax"].append(contract('pm, mn, pn ->p', phi + 2 * phi_x + phi, Da_reshaped,  phi_xx + phi_x + phi_xx, optimize=True))
             # dfa_ingredients["l_ay"].append(contract('pm, mn, pn ->p', phi + 2 * phi_y + phi, Da_reshaped,  phi_yy + phi_x + phi_yy, optimize=True))
@@ -345,6 +364,41 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
             gamma_bb = np.array(points_func.point_values()["GAMMA_BB"])[:npoints]
 
             if ingredients is True:
+
+                Da_reshaped = D_a.np[(lpos[:, None], lpos)]
+                Db_reshaped = D_b.np[(lpos[:, None], lpos)]
+
+                #Laplacian
+                sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_x, Da_reshaped, phi_x)
+                sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_xx)
+                laplacian["la_x"].append(sandwich)
+
+                sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_y, Da_reshaped, phi_y)
+                sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_yy)
+                laplacian["la_y"].append(sandwich)
+
+                sandwich  = contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_z, Da_reshaped, phi_z)
+                sandwich += contract('pm, mn, pn ->p', phi, Da_reshaped, phi_zz)
+                laplacian["la_z"].append(sandwich)
+
+                sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_x, Db_reshaped, phi_x)
+                sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_xx)
+                laplacian["lb_x"].append(sandwich)
+
+                sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_y, Db_reshaped, phi_y)
+                sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_yy)
+                laplacian["lb_y"].append(sandwich)
+
+                sandwich  = contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz)
+                sandwich += 2* contract('pm, mn, pn ->p', phi_z, Db_reshaped, phi_z)
+                sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz)
+                laplacian["lb_z"].append(sandwich)
+
                 gradient["da_x"].append(rho_ax)
                 gradient["da_y"].append(rho_ay)
                 gradient["da_z"].append(rho_az)
@@ -366,7 +420,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
-
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
         vxc["vxc"].append(vk)
@@ -377,22 +430,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients):
 
         Vtmp_a = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
         Vtmp_b = contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi)
-
-        # #Compute orbitals
-        for i_orb in range(nbf):
-            # #Orbitals on the Grid
-            # Ca_i = Ca.copy()[:lpos.shape[0], i_orb][None]
-            # Cb_i = Cb.copy()[:lpos.shape[0], i_orb][None]
-            # orb_a = contract('nm,pm->np', Ca_i, phi)[0,:npoints]
-            # orb_b = contract('nm,pm->np', Cb_i, phi)[0,:npoints]
-            # orbitals_a[str(i_orb)].append(orb_a)
-            # orbitals_b[str(i_orb)].append(orb_b)
-
-            # #Each of the Molecular Orbitals on AO Basis
-            # orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
-            # orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
-            # orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-            # orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
