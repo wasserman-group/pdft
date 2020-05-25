@@ -10,7 +10,7 @@ class Inversion():
         self.nfrag    = len(fragments)
         self.molecule = molecule
         self.nbf      = self.molecule.nbf
-        self.nblocks  = len(self.molecule.Da_r) 
+        self.nblocks  = self.assert_blocks()
 
         #From methods
         self.frag_e     = None 
@@ -18,6 +18,7 @@ class Inversion():
         self.frag_db_nm = None
         self.frag_da_r  = None
         self.frag_db_r  = None
+        self.frag_orbitals_r = None
         self.get_frag_energies()
         self.get_frag_densities_nm()
         self.get_frag_densities_r()
@@ -25,6 +26,16 @@ class Inversion():
         #From inversion
         self.vp     = None
         self.ep     = None
+
+    def assert_blocks(self):
+        if len(self.molecule.ingredients["density"]["da"]) == 0:
+            raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
+
+        if len(self.frags[0].ingredients["density"]["da"]) == 0:
+            raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
+
+        else:
+            return len(self.molecule.ingredients["density"]["da"])
 
     def get_frag_energies(self):
         """
@@ -54,12 +65,17 @@ class Inversion():
         """
         sum_a = []
         sum_b = []
+
+        print(self.nblocks)
         for block in range(self.nblocks):
-            block_sum_a = np.zeros_like(self.molecule.Da_r[block])
-            block_sum_b = np.zeros_like(self.molecule.Db_r[block])
+            print(block)
+            block_sum_a = np.zeros_like(self.molecule.ingredients["density"]["da"][block])
+            block_sum_b = np.zeros_like(self.molecule.ingredients["density"]["db"][block])
+            print(block_sum_a.shape)
+            print(self.frags[0].ingredients["density"]["da"][block].shape)
             for frag in self.frags:
-                block_sum_a += frag.Da_r[block]
-                block_sum_b += frag.Db_r[block]
+                block_sum_a += frag.ingredients["density"]["da"][block]
+                block_sum_b += frag.ingredients["density"]["db"][block]
             sum_a.append(block_sum_a)
             sum_b.append(block_sum_b)
         self.frag_da_r = sum_a
@@ -260,6 +276,7 @@ class Inversion():
         dvp_a = dd_a 
         dvp_b = dd_b
         return dvp_a, dvp_b 
+
 
     def vp_zc(self, da_mn, db_mn, rcond=1e-6):
         """

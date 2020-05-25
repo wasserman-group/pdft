@@ -73,6 +73,7 @@ class Molecule():
         #self.Da_r        = None
         #self.Db_r        = None
         self.ingredients = None
+        self.orbitals    = None
 
         #Options
         self.get_ingredients = get_ingredients
@@ -222,7 +223,7 @@ class Molecule():
                 raise NameError("Correlation hybrids are not avaliable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np, ingredients=False, orbitals=False)
+            ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=False, get_orbitals=False)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
@@ -278,7 +279,7 @@ class Molecule():
             Ca, Cocca, Da, eigs_a = self.build_orbitals(Fa, self.nalpha)
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
 
-        ks_e, Vxc_a, Vxc_b, self.ingredients, self.grid = self.get_xc(Da, Db, Ca.np, Cb.np, ingredients=self.get_ingredients, orbitals=self.get_orbitals)
+        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=self.get_ingredients, get_orbitals=self.get_orbitals)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
@@ -461,12 +462,12 @@ class RMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb, ingredients, orbitals):
+    def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc, ingredients, grid = xc(Da, Ca, self.Vpot, ingredients, orbitals)
+        ks_e, Vxc, ingredients, orbitals = xc(Da, Ca, self.Vpot, get_ingredients, get_orbitals)
 
-        return ks_e, Vxc, Vxc, ingredients, grid
+        return ks_e, Vxc, Vxc, ingredients, orbitals
 
 class UMolecule(Molecule):
 
@@ -483,9 +484,9 @@ class UMolecule(Molecule):
         self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb, ingredients, orbitals):
+    def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
-        ks_e, Vxc_a, Vxc_b, ingredients, grid = u_xc(Da, Db, Ca, Cb, self.Vpot, ingredients, orbitals)
+        ks_e, Vxc_a, Vxc_b, ingredients, orbitals = u_xc(Da, Db, Ca, Cb, self.Vpot, get_ingredients, get_orbitals)
         
-        return ks_e, Vxc_a, Vxc_b, ingredients, grid
+        return ks_e, Vxc_a, Vxc_b, ingredients, orbitals

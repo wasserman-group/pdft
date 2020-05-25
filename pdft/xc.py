@@ -149,7 +149,8 @@ def xc(D, C, Vpot, ingredients, orbitals):
             rho   = np.array(points_func.point_values()["RHO_A"])[:npoints]
 
             if ingredients is True:
-                dfa_ingredients["d"].append(rho)
+                density["da"].append(rho)
+                density["db"].append(rho)
 
         #Compute Orbitals
         if orbitals is True:
@@ -172,26 +173,27 @@ def xc(D, C, Vpot, ingredients, orbitals):
             rho_x =  np.array(points_func.point_values()["RHO_AX"])[:npoints]
             rho_y =  np.array(points_func.point_values()["RHO_AY"])[:npoints]
             rho_z =  np.array(points_func.point_values()["RHO_AZ"])[:npoints]
-            gamma = np.array(points_func.point_values()["GAMMA_AA"])[:npoints]
+            gamma_aa = np.array(points_func.point_values()["GAMMA_AA"])[:npoints]
 
             if ingredients is True:
-                gradient["d_x"].append(rho_x)
-                gradient["d_y"].append(rho_y)
-                gradient["d_z"].append(rho_z)
-                gamma["g_aa"].append(gamma)
+                gradient["da_x"].append(rho_x)
+                gradient["da_y"].append(rho_y)
+                gradient["da_z"].append(rho_z)
+                gamma["g_aa"].append(gamma_aa)
 
         #meta components
         if points_func.ansatz() >= 2:
-            tau = np.array(points_func.point_values()["TAU_A"])[:npoints]
+            tau_a = np.array(points_func.point_values()["TAU_A"])[:npoints]
             d_xx = np.array(points_func.point_values()["RHO_XX"])[:npoints]
             d_yy = np.array(points_func.point_values()["RHO_YY"])[:npoints]
             d_zz = np.array(points_func.point_values()["RHO_ZZ"])[:npoints]
 
             if ingredients is True:
-                tau["tau_a"].append(tau)
-                laplacian["d_xx"].append(d_xx)
-                laplacian["d_yy"].append(d_yy)
-                laplacian["d_zz"].append(d_zz)
+                tau["tau_a"].append(tau_a)
+                #Laplacian missing for restricted
+                laplacian["la_x"].append(d_xx)
+                laplacian["la_y"].append(d_yy)
+                laplacian["la_z"].append(d_zz)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
@@ -206,15 +208,15 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
-            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_x, v_gamma_aa, rho_x, w, phi, optimize=True)
-            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_y, v_gamma_aa, rho_y, w, phi, optimize=True)
-            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_z, v_gamma_aa, rho_z, w, phi, optimize=True)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_x, v_gamma_aa, rho_x, w, phi)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_y, v_gamma_aa, rho_y, w, phi)
+            Vtmp += 2.0 * contract('pb,p,p,p,pa->ab', phi_z, v_gamma_aa, rho_z, w, phi)
 
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
-            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x, optimize=True)
-            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y, optimize=True)
-            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z, optimize=True)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_x, v_tau_a, w, phi_x)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_a, w, phi_y)
+            Vtmp += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_a, w, phi_z)
 
         # Sum back to the correct place
         Vnm[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
@@ -225,13 +227,14 @@ def xc(D, C, Vpot, ingredients, orbitals):
                        "gamma"    : gamma,
                        "tau"      : tau,
                        "vxc"      : vxc,
-                       "grid"     : grid,
-                       "orbitals_a" : orbitals_a,
-                       "orbitals_b" : orbitals_a,
-                       "orbitals_a_mn" : orbitals_a_mn,
-                       "orbitals_b_mn" : orbitals_a_mn}
+                       "grid"     : grid}
 
-    return e_xc, Vnm, dfa_ingredients, grid
+    orbital_dictionary = {"alpha_r"    : orbitals_a, 
+                          "beta_r"     : orbitals_a,
+                          "alpha_mn" : orbitals_a_mn,
+                          "beta_mn"  : orbitals_a_mn}
+
+    return e_xc, Vnm, dfa_ingredients, orbital_dictionary
 
 def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
     """
@@ -488,10 +491,13 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                        "gamma"    : gamma,
                        "tau"      : tau,
                        "vxc"      : vxc,
-                       "grid"     : grid,
-                       "orbitals_a" : orbitals_a,
-                       "orbitals_b" : orbitals_b,
-                       "orbitals_a_mn" : orbitals_a_mn,
-                       "orbitals_b_mn" : orbitals_b_mn}
+                       "grid"     : grid,}
 
-    return e_xc, V_a, V_b, dfa_ingredients, grid
+    orbital_dictionary = {"alpha_r"  : orbitals_a,
+                           "beta_r"   : orbitals_b,
+                           "alpha_mn" : orbitals_a_mn,
+                           "beta_mn"  : orbitals_b_mn}
+
+    
+
+    return e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary
