@@ -28,11 +28,20 @@ class Inversion():
         self.ep     = None
 
     def assert_blocks(self):
+        """
+        Asserts if density on the grid is avaliable. 
+        If so, asserts that grid points are same between molecules and fragments. 
+        """
+
         if len(self.molecule.ingredients["density"]["da"]) == 0:
             raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
 
         if len(self.frags[0].ingredients["density"]["da"]) == 0:
             raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
+
+        for block in range(len(self.frags[0].ingredients["grid"]["x"])):
+            if len(self.molecule.ingredients["grid"]["x"][block]) != len(self.frags[0].ingredients["grid"]["x"][block]):
+                raise ValueError("Grid of fragments does not match Grid of molecule. Try reducing DFT_BS_RADIUS_ALPHA")
 
         else:
             return len(self.molecule.ingredients["density"]["da"])
@@ -57,7 +66,6 @@ class Inversion():
             sum_b.axpy(1.0, frag.Db)
         self.frag_da_nm = sum_a
         self.frag_db_nm = sum_b
-        return sum_a, sum_b
 
     def get_frag_densities_r(self):
         """
@@ -66,13 +74,9 @@ class Inversion():
         sum_a = []
         sum_b = []
 
-        print(self.nblocks)
         for block in range(self.nblocks):
-            print(block)
             block_sum_a = np.zeros_like(self.molecule.ingredients["density"]["da"][block])
             block_sum_b = np.zeros_like(self.molecule.ingredients["density"]["db"][block])
-            print(block_sum_a.shape)
-            print(self.frags[0].ingredients["density"]["da"][block].shape)
             for frag in self.frags:
                 block_sum_a += frag.ingredients["density"]["da"][block]
                 block_sum_b += frag.ingredients["density"]["db"][block]
@@ -276,7 +280,6 @@ class Inversion():
         dvp_a = dd_a 
         dvp_b = dd_b
         return dvp_a, dvp_b 
-
 
     def vp_zc(self, da_mn, db_mn, rcond=1e-6):
         """
