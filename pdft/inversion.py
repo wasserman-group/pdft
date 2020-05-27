@@ -1,4 +1,5 @@
 import numpy as np 
+from opt_einsum import contract
 import matplotlib.pyplot as plt
 import psi4
 
@@ -94,8 +95,8 @@ class Inversion():
             dd_b = []
             l1error = 0.0
             for block in range(self.nblocks): 
-                block_dd_a =  self.molecule.Da_r[block] - self.frag_da_r[block]
-                block_dd_b =  self.molecule.Db_r[block] - self.frag_db_r[block]
+                block_dd_a =  self.frag_da_r[block] - self.molecule.ingredients["density"]["da"][block]
+                block_dd_b =  self.frag_db_r[block] - self.molecule.ingredients["density"]["db"][block]
                 dd_a.append(block_dd_a)
                 dd_b.append(block_dd_b)
                 l1error += np.abs(np.einsum('p,p->', block_dd_a, self.molecule.omegas[block]))     
@@ -164,6 +165,8 @@ class Inversion():
 
         return x, y_arrays
 
+    # Inversion Procedures
+
     def vp_handler(self, method, beta, maxiter=40, atol=1e-5,
                   guess=None, print_scf=True, plot_scf=True):
 
@@ -173,7 +176,7 @@ class Inversion():
         if guess == "hartree":
             return 
         elif guess == "xc":
-            return 
+            return
         elif guess == "hxc":
             return 
 
@@ -182,7 +185,7 @@ class Inversion():
         for step in range(maxiter+1):
             #Update fragment densities
             for frag in self.frags:
-                frag.scf(vp_mn=[vp_a, vp_b])
+                frag.scf(vp_mn=[vp_a, vp_b], get_ingredients=True, get_orbitals=True)
 
             #Check convergence
             self.get_frag_energies()
@@ -203,12 +206,14 @@ class Inversion():
                 dvp_a, dvp_b = self.vp_dd(dd_a_mn, dd_b_mn)
             elif method == "zc":
                 dvp_a, dvp_b = self.vp_zc(dd_a_mn, dd_b_mn)
-
+            elif method == "wy_r":
+                dvp_a, dvp_b = self.vp_wy_r(dd_a, dd_b)
+ 
             #Update vp
             dvp_a = psi4.core.Matrix.from_array(dvp_a)
             dvp_b = psi4.core.Matrix.from_array(dvp_b)
-            vp_a.axpy(error * beta, dvp_a)
-            vp_b.axpy(error * beta, dvp_b)
+            vp_a.axpy(beta, dvp_a)
+            vp_b.axpy(beta, dvp_b)
             self.vp = [vp_a, vp_b]
 
             #Plot
@@ -240,14 +245,14 @@ class Inversion():
                 p2.set_xlim(-10,10)
 
                 p3.plot(x,ys[0], label="vp")
-                p3.plot(x,ys[1], label="dvp")
+                #   p3.plot(x,ys[1], label="dvp")
                 #p3.plot(x_dvp, y_dvp, label="dvp")
                 # p3.plot(vnad_xc_x, vnad_xc_y, label="vnad_xc", linestyle=":")
                 # p3.plot(vnad_ha_x, vnad_ha_y, label="vnad_ha", linestyle=":")
                 p3.set_xlabel("X")
                 p3.set_ylabel("vp")
                 p3.set_xlim(-7,7)
-                p3.set_ylim(-1.0,1.0)
+                #p3.set_ylim(-1.0,1.0)
                 p3.legend()
 
 
@@ -262,6 +267,61 @@ class Inversion():
 
             if step == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded for vp")
+
+    def vp_wy_r(self, dd_a, dd_b):
+        """ 
+        Performs the Wu-Yang Method on the grid
+        """
+
+        dvp = np.zeros_like(self.molecule.Da)
+
+        dd = dd_a + dd_b 
+
+        #Bring grid information
+        points_func = self.molecule.Vpot.properties()[0]
+        
+        #Calculate denominator
+        for block in range(self.nblocks):
+            grid_block = self.molecule.Vpot.get_block(block)
+            points_func.compute_points(grid_block)
+            npoints = grid_block.npoints()
+            lpos = np.array(grid_block.functions_local_to_global())
+            w = np.array(grid_block.w())
+            phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+
+            x_a = np.zeros((npoints, npoints))
+            x_b = np.zeros((npoints, npoints))
+            for frag in self.frags:
+                orb_a = frag.orbitals["alpha_r"]
+                orb_b = frag.orbitals["beta_r"]
+
+                for i_occ in range(0,frag.nalpha):
+                    for i_vir in range(frag.nalpha, frag.nbf):
+                        num = np.zeros((npoints, npoints))
+                        den = frag.eigs_a.np[i_occ] - frag.eigs_a.np[i_vir]
+                        for r1 in range(npoints):
+                            for r2 in range(npoints):
+                                num[r1, r2] = orb_a[str(i_occ)][block][r1] * orb_a[str(i_vir)][block][r1] * orb_a[str(i_vir)][block][r2] * orb_a[str(i_occ)][block][r2]        
+                        x_a += num / den
+
+                # num = np.zeros((self.nbf, self.nbf))
+                # for i_occ in range(0,frag.nbeta):
+                #     for i_vir in range(frag.nbeta, frag.nbf):
+                #         num = orb_b[str(i_occ)][block] * orb_b[str(i_vir)][block] * orb_b[str(i_vir)][block] * orb_b[str(i_occ)][block]
+                #         den = frag.eigs_b.np[i_occ] - frag.eigs_b.np[i_vir]
+                #         x_b += num/den
+
+            dvp_block = np.zeros((npoints))
+            for r1 in range(npoints):
+                dvp_block += (1 / (x_a[r1, :] + x_a[r1, :])) * dd[block] * w  
+
+            #xinv = 1 / (x_a + x_a)
+            #dvp_block = xinv * dd[block]
+
+            vtmp = contract('pb,p,p,pa->ab', phi, dvp_block, w, phi)
+            dvp[(lpos[:, None], lpos)] += 0.5 * (vtmp + vtmp.T)
+
+        return dvp, dvp
 
     def vp_zpm(self, dd_a, dd_b):
         """
