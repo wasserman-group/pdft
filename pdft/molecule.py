@@ -145,7 +145,7 @@ class Molecule():
         D = psi4.core.doublet(Cocc, Cocc, False, True)
         return C, Cocc, D, eigvecs
 
-    def scf(self, maxiter=40, vp_mn=None):
+    def scf(self, maxiter=40, vp_mn=None, get_ingredients=False, get_orbitals=False):
         """
         Performs scf cycle
 
@@ -154,7 +154,7 @@ class Molecule():
         vp: psi4.core.Matrix
             Vp_matrix to be added to KS matrix
         """
-        
+
         #Restricted/Unrestricted
         if vp_mn is None:
             vp_a = psi4.core.Matrix(self.nbf, self.nbf)
@@ -279,7 +279,7 @@ class Molecule():
             Ca, Cocca, Da, eigs_a = self.build_orbitals(Fa, self.nalpha)
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
 
-        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=self.get_ingredients, get_orbitals=self.get_orbitals)
+        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=get_ingredients, get_orbitals=get_orbitals)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
