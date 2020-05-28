@@ -17,7 +17,8 @@ from .xc import u_xc
 class Molecule():
 
     def __init__(self, geometry, basis, method, 
-                 mints = None, jk = None, get_ingredients=False, get_orbitals=False):
+                 mints = None, jk = None, 
+                 get_matrices=False, get_ingredients=False, get_orbitals=False):
         
         #basics
         self.geometry    = geometry
@@ -145,7 +146,7 @@ class Molecule():
         D = psi4.core.doublet(Cocc, Cocc, False, True)
         return C, Cocc, D, eigvecs
 
-    def scf(self, maxiter=40, vp_mn=None, get_ingredients=False, get_orbitals=False):
+    def scf(self, maxiter=40, vp_mn=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
         """
         Performs scf cycle
 
@@ -184,13 +185,14 @@ class Molecule():
             self.jk.C_left_add(Coccb)
             self.jk.compute()
             self.jk.C_clear()
-        
-            self.vha_a = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
-            self.vha_b = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
-            self.vxc_a = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
-            self.vxc_b = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
-            self.vee_a = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
-            self.vee_b = psi4.core.Matrix.from_array(np.zeros_like(self.H.np))
+
+            if get_matrices is True:
+                self.vha_a = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vha_b = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vxc_a = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vxc_b = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vee_a = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vee_b = psi4.core.Matrix(self.nbf, self.nbf)
 
             #Bring core matrix
             Fa = self.H.clone()
@@ -201,10 +203,12 @@ class Molecule():
             Fa.axpy(1.0, self.jk.J()[1]) 
             Fb.axpy(1.0, self.jk.J()[0])
             Fb.axpy(1.0, self.jk.J()[1])    
-            self.vha_a.axpy(1.0, self.jk.J()[0])
-            self.vha_a.axpy(1.0, self.jk.J()[1])             
-            self.vha_b.axpy(1.0, self.jk.J()[0])
-            self.vha_b.axpy(1.0, self.jk.J()[1]) 
+
+            if get_matrices is True:
+                self.vha_a.axpy(1.0, self.jk.J()[0])
+                self.vha_a.axpy(1.0, self.jk.J()[1])             
+                self.vha_b.axpy(1.0, self.jk.J()[0])
+                self.vha_b.axpy(1.0, self.jk.J()[1]) 
 
             #Exchange Hybrid?
             if self.functional.is_x_hybrid() is True:
@@ -212,8 +216,9 @@ class Molecule():
                 Fa.axpy(-alpha, self.jk.K()[0])
                 Fb.axpy(-alpha, self.jk.K()[1])
 
-                self.vee_a.axpy(-alpha, self.jk.K()[0])
-                self.vee_b.axpy(-alpha, self.jk.K()[1])
+                if get_matrices is True:
+                    self.vee_a.axpy(-alpha, self.jk.K()[0])
+                    self.vee_b.axpy(-alpha, self.jk.K()[1])
 
             elif self.functional.is_x_hybrid() is False:
                 alpha = 0.0
@@ -231,8 +236,10 @@ class Molecule():
             Fb.axpy(1.0, Vxc_b)
             Fa.axpy(1.0, vp_a)
             Fb.axpy(1.0, vp_b)
-            self.vxc_a.axpy(1.0, Vxc_a)
-            self.vxc_b.axpy(1.0, Vxc_b)
+
+            if get_matrices is True:
+                self.vxc_a.axpy(1.0, Vxc_a)
+                self.vxc_b.axpy(1.0, Vxc_b)
 
             #DIIS
             diisa_e = psi4.core.triplet(Fa, Da, self.S, False, False, False)
@@ -296,10 +303,7 @@ class Molecule():
         self.Ca, self.Cb          = Ca, Cb
         self.Cocca, self.Coccb    = Cocca, Coccb
         self.eigs_a, self.eigs_b  = eigs_a, eigs_b
-        self.Da_r, self.omegas    = self.basis_to_grid(self.Da.np)
-        self.Db_r, _              = self.basis_to_grid(self.Db.np) 
         
-
         if vp_mn is None:
             self.Da_0             = Da
             self.Db_0             = Db
@@ -449,8 +453,8 @@ class Molecule():
 
 class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False, get_orbitals=False):
-        super().__init__(geometry, basis, method, mints, jk, get_ingredients, get_orbitals)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, mints, jk, get_matrices, get_ingredients, get_orbitals)
 
         self.restricted = True
 
@@ -471,8 +475,8 @@ class RMolecule(Molecule):
 
 class UMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_ingredients=False, get_orbitals=False):
-        super().__init__(geometry, basis, method, mints, jk, get_ingredients, get_orbitals)
+    def __init__(self, geometry, basis, method, mints=None, jk=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, mints, jk, get_matrices, get_ingredients, get_orbitals)
 
         self.restricted = False
 
