@@ -74,17 +74,6 @@ def xc(D, C, Vpot, ingredients, orbitals):
     Vnm = np.zeros((nbf, nbf))
     total_e = 0.0
 
-    # dfa_ingredients = {"d"   : [], 
-    #                    "d_x" : [],
-    #                    "d_y" : [],
-    #                    "d_z" : [],
-    #                    "d_xx" : [],
-    #                    "d_yy" : [],
-    #                    "d_zz" : [], 
-    #                    "gamma" : [],
-    #                    "tau" : [], 
-    #                    "vxc" : []}
-
     density   = {"da" : [],
                  "db" : []}
 
@@ -201,10 +190,10 @@ def xc(D, C, Vpot, ingredients, orbitals):
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
         vxc["vxc"].append(vk)
-        e_xc += contract("a,a->", w, vk, optimize=True)
+        e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
-        Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi, optimize=True)
+        Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
