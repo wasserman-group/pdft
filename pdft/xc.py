@@ -122,7 +122,9 @@ def xc(D, C, Vpot, ingredients, orbitals):
         block = Vpot.get_block(b)
         points_func.compute_points(block)
         npoints = block.npoints()
-        lpos = np.array(block.functions_local_to_global())
+        #lpos = np.array(block.functions_local_to_global())
+        #print(lpos)
+        lpos = np.array([i for i in range(len(C))])
         w = np.array(block.w())
 
         #Store Grid
@@ -194,6 +196,7 @@ def xc(D, C, Vpot, ingredients, orbitals):
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
+        Vtmp = np.zeros((phi.shape[1], phi.shape[1]))
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
@@ -220,8 +223,8 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
     orbital_dictionary = {"alpha_r"    : orbitals_a, 
                           "beta_r"     : orbitals_a,
-                          "alpha_mn" : orbitals_a_mn,
-                          "beta_mn"  : orbitals_a_mn}
+                          "alpha_mn"   : orbitals_a_mn,
+                          "beta_mn"    : orbitals_a_mn}
 
     return e_xc, Vnm, dfa_ingredients, orbital_dictionary
 
