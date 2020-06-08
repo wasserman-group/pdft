@@ -17,7 +17,7 @@ from .xc import u_xc
 class Molecule():
 
     def __init__(self, geometry, basis, method, 
-                 mints = None, jk = None, 
+                 mints = None, jk = None, vpot = None,
                  get_matrices=False, get_ingredients=False, get_orbitals=False):
         
         #basics
@@ -453,8 +453,12 @@ class Molecule():
 
 class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
-        super().__init__(geometry, basis, method, mints, jk, get_matrices, get_ingredients, get_orbitals)
+    def __init__(self, geometry, basis, method, 
+                 mints=None, jk=None, vpot = None,
+                 get_matrices=True, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, 
+                         mints, jk, vpot,
+                         get_matrices, get_ingredients, get_orbitals)
 
         self.restricted = True
 
@@ -463,7 +467,7 @@ class RMolecule(Molecule):
             self.functional = functional_factory(self.method, self.restricted, deriv=2)
         else:
             self.functional = functional_factory(self.method, self.restricted, deriv=1)
-        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
+        self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
     def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
@@ -475,8 +479,12 @@ class RMolecule(Molecule):
 
 class UMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, mints=None, jk=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
-        super().__init__(geometry, basis, method, mints, jk, get_matrices, get_ingredients, get_orbitals)
+    def __init__(self, geometry, basis, method, 
+                 mints = None, jk = None, vpot = None,
+                 get_matrices=True, get_ingredients=False, get_orbitals=False):
+        super().__init__(geometry, basis, method, 
+                        mints, jk, vpot, 
+                        get_matrices, get_ingredients, get_orbitals)
 
         self.restricted = False
 
@@ -485,7 +493,9 @@ class UMolecule(Molecule):
             self.functional = functional_factory(self.method, self.restricted, deriv=2)
         else:
             self.functional = functional_factory(self.method, self.restricted, deriv=1)
-        self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
+
+        self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
+        #self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
     def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
