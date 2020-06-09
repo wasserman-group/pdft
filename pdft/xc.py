@@ -105,8 +105,11 @@ def xc(D, C, Vpot, ingredients, orbitals):
                  "z" : [],
                  "w" : []}
 
-    orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
-    orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
+    orbitals_a = None
+    orbitals_a_mn = None
+    if orbitals  is True:
+        orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
+        orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
     
     points_func = Vpot.properties()[0]
     if ingredients is True:
@@ -122,9 +125,7 @@ def xc(D, C, Vpot, ingredients, orbitals):
         block = Vpot.get_block(b)
         points_func.compute_points(block)
         npoints = block.npoints()
-        #lpos = np.array(block.functions_local_to_global())
-        #print(lpos)
-        lpos = np.array([i for i in range(len(C))])
+        lpos = np.array(block.functions_local_to_global())
         w = np.array(block.w())
 
         #Store Grid
@@ -191,7 +192,7 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        vxc["vxc"].append(vk)
+        vxc["vxc"].append(0.5 * vk)
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
@@ -287,17 +288,17 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                  "z" : [],
                  "w" : []}
 
-    orbitals_a   = {}
-    orbitals_b   = {}
-    orbitals_a_mn  = {}
-    orbitals_b_mn  = {}
+    orbitals_a   = None
+    orbitals_b   = None
+    orbitals_a_mn  = None
+    orbitals_b_mn  = None
 
-    for orb_j in range(nbf):
-        orbitals_a[str(orb_j)]  = []
-        orbitals_b[str(orb_j)]  = []
-        orbitals_a_mn[str(orb_j)] = np.zeros((nbf, nbf))
-        orbitals_b_mn[str(orb_j)] = np.zeros((nbf, nbf))
-
+    if orbitals is True:
+        orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
+        orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
+        orbitals_b    = { str(i_orb) : [] for i_orb in range(nbf) } 
+        orbitals_b_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
+    
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
@@ -335,7 +336,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
 
         #Compute Orbitals:
         if orbitals is True:
-
             Ca_local = Ca[(lpos[:, None], lpos)]
             Cb_local = Cb[(lpos[:, None], lpos)]
             orb_a = contract('nm, pm -> np', Ca_local.T, phi)
@@ -431,7 +431,7 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
         ret = func.compute_functional(points_func.point_values(), -1)
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        vxc["vxc"].append(vk)
+        vxc["vxc"].append(0.5 * vk)
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
@@ -486,9 +486,9 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                        "grid"     : grid,}
 
     orbital_dictionary = {"alpha_r"  : orbitals_a,
-                           "beta_r"   : orbitals_b,
-                           "alpha_mn" : orbitals_a_mn,
-                           "beta_mn"  : orbitals_b_mn}
+                          "beta_r"   : orbitals_b,
+                          "alpha_mn" : orbitals_a_mn,
+                          "beta_mn"  : orbitals_b_mn}
 
     
 
