@@ -196,7 +196,7 @@ def xc(D, C, Vpot, ingredients, orbitals):
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
-        Vtmp = np.zeros((phi.shape[1], phi.shape[1]))
+
 
         if func.is_gga() is True:
             v_gamma_aa = np.array(ret["V_GAMMA_AA"])[:npoints]
