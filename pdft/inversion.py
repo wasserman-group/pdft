@@ -11,7 +11,7 @@ class Inversion():
         self.nfrag    = len(fragments)
         self.molecule = molecule
         self.nbf      = self.molecule.nbf
-        self.nblocks  = self.assert_blocks()
+        self.nblocks  = self.assert_grid_elements()
 
         #From methods
         self.frag_e     = None 
@@ -28,7 +28,7 @@ class Inversion():
         self.vp     = None
         self.ep     = None
 
-    def assert_blocks(self):
+    def assert_grid_elements(self):
         """
         Asserts if density on the grid is avaliable. 
         If so, asserts that grid points are same between molecules and fragments. 
@@ -40,12 +40,17 @@ class Inversion():
         if len(self.frags[0].ingredients["density"]["da"]) == 0:
             raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
 
-        for block in range(len(self.frags[0].ingredients["grid"]["x"])):
-            if len(self.molecule.ingredients["grid"]["x"][block]) != len(self.frags[0].ingredients["grid"]["x"][block]):
-                raise ValueError("Grid of fragments does not match Grid of molecule. Try reducing DFT_BS_RADIUS_ALPHA")
+        #Checks that the number of points in each block for framgent is same wrt molecule
+        mol_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.molecule.Vpot)
+        fra_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.frags[0].Vpot)
+
+        if len(mol_points[0]) != len(fra_points[0]):
+            raise ValueError("Grid of fragments does not match Grid of molecule. Try incresing DFT_SPHERICAL_POINTS")
 
         else:
-            return len(self.molecule.ingredients["density"]["da"])
+            return self.molecule.Vpot.nblocks()
+
+        
 
     def get_frag_energies(self):
         """
@@ -99,8 +104,8 @@ class Inversion():
                 block_dd_b =  self.frag_db_r[block] - self.molecule.ingredients["density"]["db"][block]
                 dd_a.append(block_dd_a)
                 dd_b.append(block_dd_b)
-                l1error += np.abs(np.einsum('p,p->', block_dd_a, self.molecule.omegas[block]))     
-                l1error += np.abs(np.einsum('p,p->', block_dd_b, self.molecule.omegas[block]))   
+                l1error += np.abs(contract('p,p->', block_dd_a, self.molecule.ingredients["grid"]["w"][block]))     
+                l1error += np.abs(contract('p,p->', block_dd_b, self.molecule.ingredients["grid"]["w"][block]))   
             return dd_a, dd_b, l1error
 
         if option == "matrix":
@@ -176,6 +181,11 @@ class Inversion():
         if guess == "hartree":
             return 
         elif guess == "xc":
+            # vp_a += self.molecule.ingredients["vxc"] - (self.frags[0].ingredients["vxc"] + self.frags[1].ingredients["vxc"])
+            # vp_a /=2
+            # vp_b += self.molecule.ingredients["vxc"] - (self.frags[0].ingredients["vxc"] + self.frags[1].ingredients["vxc"])
+            # vp_b /=2
+            #vp_a +=  self.molecule.wfn.V() - ()
             return
         elif guess == "hxc":
             return 
@@ -256,7 +266,7 @@ class Inversion():
                 p3.legend()
 
 
-                p4.plot(x, np.log10(np.abs(ys[1] - ys[2])), label="log10(DD)")
+                p4.plot(x, np.log10(np.abs(ys[2] - ys[3])), label="log10(DD)")
                 p4.set_xlabel("X")
                 p4.set_ylabel("n_mol - sum(n_i)")
                 #p4.set_xlim(-10,10)
@@ -274,15 +284,20 @@ class Inversion():
         """
 
         dvp = np.zeros_like(self.molecule.Da)
-
         dd = dd_a + dd_b 
 
         #Bring grid information
         points_func = self.molecule.Vpot.properties()[0]
+        #points_func = self.frags[0].Vpot.properties()[0]
+
+        if self.nblocks != self.molecule.Vpot.nblocks():
+            raise Exception("Number of blocks is inconsistent")
         
         #Calculate denominator
-        for block in range(self.nblocks):
+
+        for block in range(self.molecule.Vpot.nblocks()):
             grid_block = self.molecule.Vpot.get_block(block)
+            #grid_block = self.frags[0].Vpot.get_block(block)
             points_func.compute_points(grid_block)
             npoints = grid_block.npoints()
             lpos = np.array(grid_block.functions_local_to_global())
@@ -291,14 +306,17 @@ class Inversion():
 
             x_a = np.zeros((npoints, npoints))
             x_b = np.zeros((npoints, npoints))
+
             for frag in self.frags:
                 orb_a = frag.orbitals["alpha_r"]
                 orb_b = frag.orbitals["beta_r"]
-
+                
                 for i_occ in range(0,frag.nalpha):
                     for i_vir in range(frag.nalpha, frag.nbf):
-                        num = np.zeros((npoints, npoints))
+                        
                         den = frag.eigs_a.np[i_occ] - frag.eigs_a.np[i_vir]
+                        num = np.zeros((npoints, npoints))
+
                         for r1 in range(npoints):
                             for r2 in range(npoints):
                                 num[r1, r2] = orb_a[str(i_occ)][block][r1] * orb_a[str(i_vir)][block][r1] * orb_a[str(i_vir)][block][r2] * orb_a[str(i_occ)][block][r2]        
@@ -328,8 +346,8 @@ class Inversion():
         Performs the Zhao-Morrison-Parr Inversion
         Physical Review A, 50(3):2138, 1994.
         """
-        dvp_a = (-0.5) * np.einsum('imlj, ml->ij', self.molecule.mints.ao_eri().np, dd_a)
-        dvp_b = (-0.5) * np.einsum('imlj, ml->ij', self.molecule.mints.ao_eri().np, dd_b)
+        dvp_a = (-0.5) * contract('imlj, ml->ij', self.molecule.mints.ao_eri().np, dd_a)
+        dvp_b = (-0.5) * contract('imlj, ml->ij', self.molecule.mints.ao_eri().np, dd_b)
         return dvp_a, dvp_b
 
     def vp_dd(self, dd_a, dd_b):
@@ -367,8 +385,8 @@ class Inversion():
 
                 for i in range(0, self.molecule.nalpha):
                     for a in range(self.molecule.nalpha, nbf):
-                        x += np.einsum('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-                        x += np.einsum('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
+                        x += contract('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
+                        x += contract('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
                         #x += np.einsum('m, n, l, s -> mnls', Ca[:,i], Ca[:,a], Ca[:,i], Ca[:,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
                         #x += np.einsum('m, n, l, s -> mnls', Cb[:,i], Cb[:,a], Cb[:,i], Cb[:,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
 
@@ -394,7 +412,7 @@ class Inversion():
         #x = 0.5 * (x + x.T)
         x_inv = np.linalg.pinv(x)
         #print("min value of x_inv", np.min(np.abs(x_inv)))
-        dvp = np.einsum('mnls, ls -> mn', x_inv, dd)
+        dvp = contract('mnls, ls -> mn', x_inv, dd)
         dvp = 0.5 * (dvp + dvp.T)
 
         return dvp, dvp
