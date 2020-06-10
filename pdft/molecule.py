@@ -495,7 +495,6 @@ class UMolecule(Molecule):
             self.functional = functional_factory(self.method, self.restricted, deriv=1)
 
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
-        #self.Vpot       = psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
     def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
