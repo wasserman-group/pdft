@@ -489,10 +489,10 @@ class UMolecule(Molecule):
         self.restricted = False
 
         #Psi4 objects 
-        if get_ingredients == True:
-            self.functional = functional_factory(self.method, self.restricted, deriv=2)
-        else:
-            self.functional = functional_factory(self.method, self.restricted, deriv=1)
+        # if get_ingredients == True:
+        #     self.functional = functional_factory(self.method, self.restricted, deriv=2)
+        # else:
+        self.functional = functional_factory(self.method, self.restricted, deriv=2)
 
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
