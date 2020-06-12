@@ -185,8 +185,16 @@ class Inversion():
             # vp_a /=2
             # vp_b += self.molecule.ingredients["vxc"] - (self.frags[0].ingredients["vxc"] + self.frags[1].ingredients["vxc"])
             # vp_b /=2
-            #vp_a +=  self.molecule.wfn.V() - ()
-            return
+            nad_xc_a = self.molecule.vxc_a.clone()
+            nad_xc_a.axpy(-1.0, self.frags[0].vxc_a)
+            nad_xc_a.axpy(-1.0, self.frags[1].vxc_a)
+
+            nad_xc_b = self.molecule.vxc_b.clone()
+            nad_xc_b.axpy(-1.0, self.frags[0].vxc_b)
+            nad_xc_b.axpy(-1.0, self.frags[1].vxc_b)
+
+            vp_a.axpy(1.0, nad_xc_a)
+            vp_b.axpy(1.0, nad_xc_b)
         elif guess == "hxc":
             return 
 
@@ -360,6 +368,7 @@ class Inversion():
         return dvp_a, dvp_b 
 
     def vp_zc(self, da_mn, db_mn, rcond=1e-6):
+
         """
         Performs the Zhang-Carter Inversion
         J. Chem. Phys. 148, 034105 (2018)
@@ -416,3 +425,49 @@ class Inversion():
         dvp = 0.5 * (dvp + dvp.T)
 
         return dvp, dvp
+
+    def get_epsilon_ks(self):
+        """
+        Obtains average local electron energy 
+        10.1021/acs.jctc.8b00717
+        From equation 15
+        """
+        #produce e^{-ks}
+        na = self.molecule.nalpha
+        nb = self.molecule.nbeta
+        orb_a = self.molecule.orbitals["alpha_r"]
+        orb_b = self.molecule.orbitals["beta_r"]
+        da = self.molecule.ingredients["density"]["da"]
+        db = self.molecule.ingredients["density"]["db"]
+
+        epsilon_ks_a = []        
+        for block in range(self.nblocks):
+            num = np.zeros_like(orb_a["0"][block])
+            for i_occ in range(na):
+                num += self.molecule.eigs_a.np[:na][i_occ] * np.abs(orb_a[str(i_occ)][block])**2
+            num /= da[block]
+            epsilon_ks_a.append(num)
+
+        epsilon_ks_b = []        
+        for block in range(self.nblocks):
+            num = np.zeros_like(orb_b["0"][block])
+            for i_occ in range(nb):
+                num += self.molecule.eigs_b.np[:nb][i_occ] * np.abs(orb_b[str(i_occ)][block])**2
+            num /= db[block]
+            epsilon_ks_b.append(num)
+        
+        return [epsilon_ks_a, epsilon_ks_b]
+
+    # def get_vext_tilde(self):
+    #     """
+    #     Obtains the numerically evaluated external potential solved for via KSDFT
+    #     with any nonhybrid XC functional.
+    #     10.1021/acs.jctc.8b00717
+    #     From equation 22
+    #     """
+
+    #     e_ks = self.get_epsilon_ks()
+
+    #     v_ext_tilde = []
+    #     for block in range(self.nblocks):
+
