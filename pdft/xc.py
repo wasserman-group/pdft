@@ -204,7 +204,8 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        vxc["vxc"].append(0.5 * vk)
+        #vxc["vxc"].append(0.5 * vk)
+        vxc["vxc"].append(vk)
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
