@@ -98,7 +98,8 @@ def xc(D, C, Vpot, ingredients, orbitals):
     tau       = {"tau_a" : [],
                  "tau_b" : []}
 
-    vxc       = {"vxc" : []}
+    vxc       = {"vxc_a" : [],
+                 "vxc_b" : []}
 
     grid      = {"x" : [],
                  "y" : [],
@@ -204,11 +205,11 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        #vxc["vxc"].append(0.5 * vk)
-        vxc["vxc"].append(vk)
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
-        v_rho_a = np.array(ret["V_RHO_A"])[:npoints]        
+        v_rho_a = np.array(ret["V_RHO_A"])[:npoints]    
+        vxc["vxc_a"].append(v_rho_a)
+        vxc["vxc_b"].append(v_rho_a)    
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
 
 
@@ -294,7 +295,8 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
     tau       = {"tau_a" : [],
                  "tau_b" : []}
 
-    vxc       = {"vxc" : []}
+    vxc       = {"vxc_a" : [],
+                 "vxc_b" : []}
 
     grid      = {"x" : [],
                  "y" : [],
@@ -456,11 +458,12 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
         ret = func.compute_functional(points_func.point_values(), -1)
         #Compute the XC energy
         vk = np.array(ret["V"])[:npoints]
-        vxc["vxc"].append(0.5 * vk)
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
         v_rho_b = np.array(ret["V_RHO_B"])[:npoints]   
+        vxc["vxc_a"].append(v_rho_a)
+        vxc["vxc_b"].append(v_rho_b)
 
         Vtmp_a = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
         Vtmp_b = contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi)
