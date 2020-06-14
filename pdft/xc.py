@@ -148,26 +148,11 @@ def xc(D, C, Vpot, ingredients, orbitals):
         #Compute Orbitals
         if orbitals is True:
             for i_orb in range(nbf):
-
-            #Ca_local = C[(lpos[:, None], lpos)]
-            # Ca_local = C[0, lpos]
-            # orb_a = contract('m, pm -> p', Ca_local.T, phi)
-            # orbitals_a["0"].append(orb_a)
-            # orb_a_tmp = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
-            # orbitals_a_mn["0"][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-
                 Ca_local = C[lpos, i_orb]
                 orb_a = contract('m, pm -> p', Ca_local.T, phi)
                 orbitals_a[str(i_orb)].append(orb_a)
                 orb_a_tmp = contract('pb,p,p,pa->ab', phi, orb_a, w, phi)
                 orbitals_a_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-
-            #Each of the Molecular Orbitals on AO Basis
-            #for j, i_pos in enumerate(lpos):
-            #    orbitals_a[str(i_pos)].append(orb_a[j])
-            #    orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a[j], w, phi)
-            #    orbitals_a_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-
 
         #GGA components
         if points_func.ansatz() >= 1:
@@ -363,20 +348,6 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                 orbitals_b[str(i_orb)].append(orb_b)
                 orb_b_tmp = contract('pb,p,p,pa->ab', phi, orb_b, w, phi)
                 orbitals_b_mn[str(i_orb)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
-            # Ca_local = Ca[(lpos[:, None], lpos)]
-            # Cb_local = Cb[(lpos[:, None], lpos)]
-            # orb_a = contract('nm, pm -> np', Ca_local.T, phi)
-            # orb_b = contract('nm, pm -> np', Cb_local.T, phi)
-
-            # #Each of the Molecular Orbitals on AO Basis
-            # for j, i_pos in enumerate(lpos):
-            #     orbitals_a[str(i_pos)].append(orb_a[j])
-            #     orbitals_b[str(i_pos)].append(orb_b[j])
-            #     orb_a_tmp  = contract('pb,p,p,pa->ab', phi, orb_a[j], w, phi)
-            #     orb_b_tmp  = contract('pb,p,p,pa->ab', phi, orb_b[j], w, phi)
-            #     orbitals_a_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_a_tmp + orb_a_tmp.T)
-            #     orbitals_b_mn[str(i_pos)][(lpos[:, None], lpos)] += 0.5 * (orb_b_tmp + orb_b_tmp.T)
-
 
         #GGA components
         if points_func.ansatz() >=1:
