@@ -42,8 +42,6 @@ class Molecule():
         self.S           = self.mints.ao_overlap()
         self.A           = self.form_A()
         self.H           = self.form_H()
-        self.T           = None
-        self.V           = None
         #From scf
         self.Ca          = None
         self.Cb          = None
@@ -308,6 +306,9 @@ class Molecule():
             self.Da_0             = Da
             self.Db_0             = Db
 
+        #Stores everything in wfn object
+        self.set_wfn()
+
     def basis_to_grid(self, mat, blocks=True):
         """
         Turns a matrix expressed in the basis of mol to its grid representation
@@ -388,7 +389,7 @@ class Molecule():
         if blocks is False: 
             return full_mat, [x,y,z,full_w] 
 
-    def axis_plot(self, axis, matrices, labels=None, xrange=None, yrange=None, threshold=1e-8, 
+    def axis_plot(self, axis, matrices, labels=None, xrange=None, yrange=None, threshold=1e-11, 
                   return_array=False):
         """
 
@@ -450,6 +451,72 @@ class Molecule():
 
         if return_array is True:
             return x, y_arrays
+
+    def set_wfn(self):
+        """
+        Sets scf output to wfn object
+        """
+
+        matrices = {"Ca" : self.Ca, "Cb" : self.Cb, 
+                    "Da" : self.Db, "Db" : self.Db,
+                    "Fa" : self.Fa, "Fb" : self.Fb,
+                    "H"  : self.H,
+                    "S"  : self.S,
+                    #"Lagrangian" : None,
+                    #"AO2SO" : None,
+                    #"gradient" : None, 
+                    #"Hessian" : None
+                    }
+
+        vectors = {"epsilon_a" : self.eigs_a, "epsilon_b" : self.eigs_b,
+                   #"frequencies" : None
+                   }
+
+        dimensions = {#"doccpi": None, 
+                      #"soccpi" : None, 
+                      #"frzcpi" : None, 
+                      #"frzvpi" : None,
+                      #"nalphapi" : None,
+                      #"nbetapi" : None, 
+                      #"nmopi" : None,
+                      #"nsopi" : None
+                      }
+
+        integers = {"nalpha" : self.nalpha, "nbeta" : self.nbeta, 
+                    #"nfrzc" : None, 
+                    #"nirrep": None,
+                    #"nmo" : None, 
+                    #"nso" : None, 
+                    #"print" : None
+                    }
+                
+        name = {#"name" : None
+                }
+
+        booleans = {#"PCM_enabled" : None, 
+                    #"same_a_b_dens" : None, 
+                    #"same_a_b_orbs" : None,
+                    #"density_fitted" : None,
+                    # 
+                    }
+
+        floats = {"energy" : self.energy, 
+                  #"efzc" : None, 
+                  #"dipole_field_x" : None,
+                  #"dipole_field_y" : None,
+                  #"dipole_field_z" : None
+                  }        
+
+        
+        wfn = psi4.core.Wavefunction(self.geometry, self.basis, matrices,
+                                                                vectors, 
+                                                                dimensions, 
+                                                                integers,
+                                                                name,
+                                                                booleans, 
+                                                                floats)
+
+        self.wfn = wfn
 
 class RMolecule(Molecule):
 
