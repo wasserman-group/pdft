@@ -44,7 +44,9 @@ def functional_factory(method, restricted, deriv=1, points=500000):
     
     return functional[0]
 
-def xc(D, C, Vpot, ingredients, orbitals):
+def xc(D, C,
+       wfn, Vpot,
+       ingredients, orbitals):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation
@@ -98,8 +100,10 @@ def xc(D, C, Vpot, ingredients, orbitals):
     tau       = {"tau_a" : [],
                  "tau_b" : []}
 
-    vxc       = {"vxc_a" : [],
-                 "vxc_b" : []}
+    potential = { "vxc_a"  : [],
+                  "vxc_b"  : [], 
+                  "vext"   : [],
+                  "vha"    : []}
 
     grid      = {"x" : [],
                  "y" : [],
@@ -113,11 +117,20 @@ def xc(D, C, Vpot, ingredients, orbitals):
         orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
     
     points_func = Vpot.properties()[0]
-    if ingredients is True:
+    if ingredients is True or self.functional.is_gga():
         points_func.set_ansatz(2)
     func = Vpot.functional()
 
     e_xc = 0.0
+
+    #Geometry information for Vext
+    mol_dict = wfn.molecule().to_schema(dtype='psi4')
+    natoms = len(mol_dict["elem"])
+    indx = [i for i in range(natoms) if wfn.molecule().charge(i) != 0.0]
+    natoms = len(indx)
+    #Atomic numbers and Atomic positions
+    zs = [mol_dict["elez"][i] for i in indx]
+    rs = [wfn.molecule().geometry().np[i] for i in indx]
     
     # First loop over the outer set of blocks
     for b in range(Vpot.nblocks()):
@@ -131,10 +144,28 @@ def xc(D, C, Vpot, ingredients, orbitals):
 
         #Store Grid
         if ingredients is True:
-            grid["x"].append(np.array(block.x()))
-            grid["y"].append(np.array(block.y()))
-            grid["z"].append(np.array(block.z()))
+                    
+            x =  np.array(block.x())
+            y =  np.array(block.y())
+            z =  np.array(block.z())
+
+            grid["x"].append(x)
+            grid["y"].append(y)
+            grid["z"].append(z)
             grid["w"].append(w)
+
+        #Compute Hartree External
+            #External
+            vext_block = np.zeros(npoints)
+            for atom in range(natoms):
+                vext_block += -1.0 * zs[atom] / np.sqrt((x-rs[atom][0])**2 + (y-rs[atom][1])**2 + (z-rs[atom][2])**2)
+            potential["vext"].append(vext_block)
+
+            #Esp 
+            grid_block = np.array((x,y,z)).T
+            grid_block = psi4.core.Matrix.from_array(grid_block)
+            esp_block = psi4.core.ESPPropCalc(wfn).compute_esp_over_grid_in_memory(grid_block).np
+            potential["vha"].append(-1.0 * esp_block - vext_block)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -193,8 +224,8 @@ def xc(D, C, Vpot, ingredients, orbitals):
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]    
-        vxc["vxc_a"].append(v_rho_a)
-        vxc["vxc_b"].append(v_rho_a)    
+        potential["vxc_a"].append(v_rho_a)
+        potential["vxc_b"].append(v_rho_a)    
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
 
 
@@ -213,22 +244,25 @@ def xc(D, C, Vpot, ingredients, orbitals):
         # Sum back to the correct place
         Vnm[(lpos[:, None], lpos)] += 0.5*(Vtmp + Vtmp.T)
 
-    dfa_ingredients = {"density"  : density,
-                       "gradient" : gradient,
-                       "laplacian": laplacian,
-                       "gamma"    : gamma,
-                       "tau"      : tau,
-                       "vxc"      : vxc,
-                       "grid"     : grid}
+    density_ingredients = {"density"  : density,
+                           "gradient" : gradient,
+                           "laplacian": laplacian,
+                           "gamma"    : gamma,
+                           "tau"      : tau,}
 
     orbital_dictionary = {"alpha_r"    : orbitals_a, 
                           "beta_r"     : orbitals_a,
                           "alpha_mn"   : orbitals_a_mn,
                           "beta_mn"    : orbitals_a_mn}
 
-    return e_xc, Vnm, dfa_ingredients, orbital_dictionary
+    for i_key in potential.keys():
+        potential[i_key] = np.array(potential[i_key])
 
-def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
+    return e_xc, Vnm, density_ingredients, orbital_dictionary, grid, potential
+
+def u_xc(D_a, D_b, Ca, Cb, 
+        wfn, Vpot,
+        ingredients, orbitals):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -280,8 +314,10 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
     tau       = {"tau_a" : [],
                  "tau_b" : []}
 
-    vxc       = {"vxc_a" : [],
-                 "vxc_b" : []}
+    potential = { "vxc_a"  : [],
+                  "vxc_b"  : [], 
+                  "vext"   : [],
+                  "vha"    : []}
 
     grid      = {"x" : [],
                  "y" : [],
@@ -302,11 +338,20 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
-    if ingredients is True:
-        points_func.set_ansatz(2)
+    #if ingredients is True :
+    points_func.set_ansatz(2)
 
     func = Vpot.functional()
     e_xc = 0.0
+
+    #Geometry information for Vext
+    mol_dict = wfn.molecule().to_schema(dtype='psi4')
+    natoms = len(mol_dict["elem"])
+    indx = [i for i in range(natoms) if wfn.molecule().charge(i) != 0.0]
+    natoms = len(indx)
+    #Atomic numbers and Atomic positions
+    zs = [mol_dict["elez"][i] for i in indx]
+    rs = [wfn.molecule().geometry().np[i] for i in indx]
     
     # First loop over the outer set of blocks
     for b in range(Vpot.nblocks()):
@@ -316,13 +361,31 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
         points_func.compute_points(block)
         npoints = block.npoints()
         lpos = np.array(block.functions_local_to_global())
-
         w = np.array(block.w())
+
         if ingredients is True:
-            grid["x"].append(np.array(block.x()))
-            grid["y"].append(np.array(block.y()))
-            grid["z"].append(np.array(block.z()))
+                    
+            x =  np.array(block.x())
+            y =  np.array(block.y())
+            z =  np.array(block.z())
+
+            grid["x"].append(x)
+            grid["y"].append(y)
+            grid["z"].append(z)
             grid["w"].append(w)
+
+        #Compute Hartree External
+            #External
+            vext_block = np.zeros(npoints)
+            for atom in range(natoms):
+                vext_block += -1.0 * zs[atom] / np.sqrt((x-rs[atom][0])**2 + (y-rs[atom][1])**2 + (z-rs[atom][2])**2)
+            potential["vext"].append(vext_block)
+
+            #Esp 
+            grid_block = np.array((x,y,z)).T
+            grid_block = psi4.core.Matrix.from_array(grid_block)
+            esp_block = psi4.core.ESPPropCalc(wfn).compute_esp_over_grid_in_memory(grid_block).np
+            potential["vha"].append(-1.0 * esp_block - vext_block)
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -433,8 +496,8 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
         #Compute the XC derivative
         v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
         v_rho_b = np.array(ret["V_RHO_B"])[:npoints]   
-        vxc["vxc_a"].append(v_rho_a)
-        vxc["vxc_b"].append(v_rho_b)
+        potential["vxc_a"].append(v_rho_a)
+        potential["vxc_b"].append(v_rho_b)
 
         Vtmp_a = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
         Vtmp_b = contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi)
@@ -480,15 +543,15 @@ def u_xc(D_a, D_b, Ca, Cb, Vpot, ingredients, orbitals):
                        "gradient" : gradient,
                        "laplacian": laplacian,
                        "gamma"    : gamma,
-                       "tau"      : tau,
-                       "vxc"      : vxc,
-                       "grid"     : grid,}
+                       "tau"      : tau}
 
     orbital_dictionary = {"alpha_r"  : orbitals_a,
                           "beta_r"   : orbitals_b,
                           "alpha_mn" : orbitals_a_mn,
                           "beta_mn"  : orbitals_b_mn}
 
+    for i_key in potential.keys():
+        potential[i_key] = np.array(potential[i_key])
     
 
-    return e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary
+    return e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary, grid, potential
