@@ -117,8 +117,8 @@ def xc(D, C,
         orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
     
     points_func = Vpot.properties()[0]
-    if ingredients is True or self.functional.is_gga():
-        points_func.set_ansatz(2)
+    #if ingredients is True or self.functional.is_gga():
+    points_func.set_ansatz(2)
     func = Vpot.functional()
 
     e_xc = 0.0

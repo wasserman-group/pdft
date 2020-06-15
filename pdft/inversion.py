@@ -50,7 +50,26 @@ class Inversion():
         else:
             return self.molecule.Vpot.nblocks()
 
-        
+    def get_vha_nad(self):
+        """
+        Calculates vha_nad on the grid
+        """
+
+        vha_nad  = self.molecule.potential["vha"].copy()
+        for i_frag in self.frags:
+            vha_nad -= i_frag.potential["vha"].copy()
+        return vha_nad
+
+    def get_vxc_nad(self):
+        """
+        Calculates vxc_nad on the grid
+        """
+
+        vxc_nad_a = self.molecule.potential["vxc_a"].copy()
+        for i_frag in self.frags:
+            vxc_nad_a -= i_frag.potential["vxc_a"].copy()
+
+        return vxc_nad_a
 
     def get_frag_energies(self):
         """
@@ -104,9 +123,9 @@ class Inversion():
                 block_dd_b =  self.frag_db_r[block] - self.molecule.ingredients["density"]["db"][block]
                 dd_a.append(block_dd_a)
                 dd_b.append(block_dd_b)
-                l1error += np.abs(contract('p,p->', block_dd_a, self.molecule.ingredients["grid"]["w"][block]))     
-                l1error += np.abs(contract('p,p->', block_dd_b, self.molecule.ingredients["grid"]["w"][block]))   
-            return dd_a, dd_b, l1error
+                l1error += np.abs(contract('p,p->', block_dd_a, self.molecule.grid["w"][block]))     
+                l1error += np.abs(contract('p,p->', block_dd_b, self.molecule.grid["w"][block]))   
+            return np.array(dd_a), np.array(dd_b), l1error
 
         if option == "matrix":
             dd_a = self.molecule.Da.np - self.frag_da_nm.np
@@ -121,6 +140,23 @@ class Inversion():
         for frag in self.frags:
             ep -= (frag.energy - frag.Enuc)
         self.ep = ep
+
+    def reintegrate_ao(self, function):
+
+        f_nm = np.zeros((self.nbf, self.nbf))
+        points_func = self.molecule.Vpot.properties()[0]
+
+        for block in range(self.nblocks):
+            grid_block = self.molecule.Vpot.get_block(block)
+            points_func.compute_points(grid_block)
+            npoints = grid_block.npoints()
+            lpos = np.array(grid_block.functions_local_to_global())
+            w = np.array(grid_block.w())
+            phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+            vtmp = contract('pb,p,p,pa->ab', phi, function[block], w, phi)
+            f_nm[(lpos[:, None], lpos)] += 0.5 * (vtmp + vtmp.T)
+
+        return f_nm
 
     def axis_plot(self, axis, matrices, grid, threshold=1e-8):
         """
@@ -178,25 +214,24 @@ class Inversion():
         vp_a = psi4.core.Matrix(self.nbf, self.nbf)
         vp_b = psi4.core.Matrix(self.nbf, self.nbf)
 
-        if guess == "hartree":
-            return 
-        elif guess == "xc":
-            # vp_a += self.molecule.ingredients["vxc"] - (self.frags[0].ingredients["vxc"] + self.frags[1].ingredients["vxc"])
-            # vp_a /=2
-            # vp_b += self.molecule.ingredients["vxc"] - (self.frags[0].ingredients["vxc"] + self.frags[1].ingredients["vxc"])
-            # vp_b /=2
-            nad_xc_a = self.molecule.vxc_a.clone()
-            nad_xc_a.axpy(-1.0, self.frags[0].vxc_a)
-            nad_xc_a.axpy(-1.0, self.frags[1].vxc_a)
+        #GRID GUESSES
+        # if guess == "hartree":
+        #     vp_a_r = self.get_vha_nad()
+        #     vp_b_r = vp_a_r.copy()
 
-            nad_xc_b = self.molecule.vxc_b.clone()
-            nad_xc_b.axpy(-1.0, self.frags[0].vxc_b)
-            nad_xc_b.axpy(-1.0, self.frags[1].vxc_b)
+        # elif guess == "xc":
+        #     vp_a_r = self.get_vxc_nad()
+        #     vp_b_r = vp_a_r.copy()
 
-            vp_a.axpy(1.0, nad_xc_a)
-            vp_b.axpy(1.0, nad_xc_b)
-        elif guess == "hxc":
-            return 
+        # elif guess == "hxc":
+        #     vp_a_r = self.get_vha_nad()
+        #     vp_a_r += self.get_vxc_nad()
+        #     vp_b_r = vp_a_r.copy()
+
+        # vp_a = self.reintegrate_ao(vp_a_r)
+        # vp_b = self.reintegrate_ao(vp_b_r)
+        # vp_a = psi4.core.Matrix.from_array(vp_a)
+        # vp_b = psi4.core.Matrix.from_array(vp_b)
 
         l1_list = []
         ep_list = []
