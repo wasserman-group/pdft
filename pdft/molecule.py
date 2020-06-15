@@ -27,7 +27,8 @@ class Molecule():
         self.Enuc        = geometry.nuclear_repulsion_energy()
 
         #Psi4 objects
-        self.wfn         = psi4.core.Wavefunction.build(self.geometry, self.basis_label)
+        #self.wfn         = psi4.core.Wavefunction.build(self.geometry, self.basis_label)
+        self.set_wfn()
         self.mints       = mints if mints is not None else psi4.core.MintsHelper(self.wfn.basisset())
 
         #From psi4 objects
@@ -226,7 +227,8 @@ class Molecule():
                 raise NameError("Correlation hybrids are not avaliable")
 
             #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=False, get_orbitals=False)
+            ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
+                                                                                             False, False)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
@@ -284,7 +286,8 @@ class Molecule():
             Ca, Cocca, Da, eigs_a = self.build_orbitals(Fa, self.nalpha)
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
 
-        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals = self.get_xc(Da, Db, Ca.np, Cb.np, get_ingredients=get_ingredients, get_orbitals=get_orbitals)
+        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
+                                                                          get_ingredients=get_ingredients, get_orbitals=get_orbitals)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
@@ -307,7 +310,7 @@ class Molecule():
             self.Db_0             = Db
 
         #Stores everything in wfn object
-        self.set_wfn()
+        #self.set_wfn()
 
     def basis_to_grid(self, mat, blocks=True):
         """
@@ -389,6 +392,49 @@ class Molecule():
         if blocks is False: 
             return full_mat, [x,y,z,full_w] 
 
+    def axis_plot_r(self, functions, axis="z", labels=None, xrange=None, yrange=None, threshold=1e-11):
+
+        y_out_arrays = []
+
+        for j, function in enumerate(functions):
+
+            x_out = []
+            y_out = []
+
+            for block in range(len(function)):
+
+                x = self.grid["x"][block]
+                y = self.grid["y"][block]
+                z = self.grid["z"][block]
+
+                if axis == "z":
+                    for i_point in range(len(x)):
+                        if np.abs(x[i_point]) < threshold:
+                            if np.abs(y[i_point]) < threshold:
+                                x_out.append(z[i_point])
+                                y_out.append(function[block][i_point])
+
+
+            x_out = np.array(x_out)
+            y_out = np.array(y_out)
+            indx = x_out.argsort()
+            x_out = x_out[indx]
+            y_out = y_out[indx]
+
+            if labels is None:
+                plt.plot(x_out,y_out)
+            elif labels is not None:
+                plt.plot(x_out,y_out,label=labels[j])
+                plt.legend()
+            # if return_array is True:
+            #     y_arrays.append((x_out,y_out))
+            if xrange is not None:
+                plt.xlim(xrange)
+            if yrange is not None:
+                plt.ylim(yrange)
+
+        plt.show()
+
     def axis_plot(self, axis, matrices, labels=None, xrange=None, yrange=None, threshold=1e-11, 
                   return_array=False):
         """
@@ -457,64 +503,66 @@ class Molecule():
         Sets scf output to wfn object
         """
 
-        matrices = {"Ca" : self.Ca, "Cb" : self.Cb, 
-                    "Da" : self.Db, "Db" : self.Db,
-                    "Fa" : self.Fa, "Fb" : self.Fb,
-                    "H"  : self.H,
-                    "S"  : self.S,
-                    #"Lagrangian" : None,
-                    #"AO2SO" : None,
-                    #"gradient" : None, 
-                    #"Hessian" : None
-                    }
+        _, wfn = psi4.energy(self.method+"/"+self.basis_label, molecule=self.geometry, return_wfn=True)
 
-        vectors = {"epsilon_a" : self.eigs_a, "epsilon_b" : self.eigs_b,
-                   #"frequencies" : None
-                   }
+        # matrices = {"Ca" : self.Ca, "Cb" : self.Cb, 
+        #             "Da" : self.Db, "Db" : self.Db,
+        #             "Fa" : self.Fa, "Fb" : self.Fb,
+        #             "H"  : self.H,
+        #             "S"  : self.S,
+        #             #"Lagrangian" : None,
+        #             "AO2SO" : wfn.aotoso(),
+        #             #"gradient" : None, 
+        #             #"Hessian" : None
+        #             }
 
-        dimensions = {#"doccpi": None, 
-                      #"soccpi" : None, 
-                      #"frzcpi" : None, 
-                      #"frzvpi" : None,
-                      #"nalphapi" : None,
-                      #"nbetapi" : None, 
-                      #"nmopi" : None,
-                      #"nsopi" : None
-                      }
+        # vectors = {"epsilon_a" : self.eigs_a, "epsilon_b" : self.eigs_b,
+        #            #"frequencies" : None
+        #            }
 
-        integers = {"nalpha" : self.nalpha, "nbeta" : self.nbeta, 
-                    #"nfrzc" : None, 
-                    #"nirrep": None,
-                    #"nmo" : None, 
-                    #"nso" : None, 
-                    #"print" : None
-                    }
+        # dimensions = {#"doccpi": None, 
+        #               #"soccpi" : None, 
+        #               #"frzcpi" : None, 
+        #               #"frzvpi" : None,
+        #               #"nalphapi" : None,
+        #               #"nbetapi" : None, 
+        #               #"nmopi" : None,
+        #               #"nsopi" : None
+        #               }
+
+        # integers = {"nalpha" : self.nalpha, "nbeta" : self.nbeta, 
+        #             #"nfrzc" : None, 
+        #             #"nirrep": None,
+        #             #"nmo" : None, 
+        #             #"nso" : None, 
+        #             #"print" : None
+        #             }
                 
-        name = {#"name" : None
-                }
+        # name = {#"name" : None
+        #         }
 
-        booleans = {#"PCM_enabled" : None, 
-                    #"same_a_b_dens" : None, 
-                    #"same_a_b_orbs" : None,
-                    #"density_fitted" : None,
-                    # 
-                    }
+        # booleans = {#"PCM_enabled" : None, 
+        #             #"same_a_b_dens" : None, 
+        #             #"same_a_b_orbs" : None,
+        #             #"density_fitted" : None,
+        #             # 
+        #             }
 
-        floats = {"energy" : self.energy, 
-                  #"efzc" : None, 
-                  #"dipole_field_x" : None,
-                  #"dipole_field_y" : None,
-                  #"dipole_field_z" : None
-                  }        
+        # floats = {"energy" : self.energy, 
+        #           #"efzc" : None, 
+        #           #"dipole_field_x" : None,
+        #           #"dipole_field_y" : None,
+        #           #"dipole_field_z" : None
+        #           }        
 
         
-        wfn = psi4.core.Wavefunction(self.geometry, self.basis, matrices,
-                                                                vectors, 
-                                                                dimensions, 
-                                                                integers,
-                                                                name,
-                                                                booleans, 
-                                                                floats)
+        # wfn = psi4.core.Wavefunction(self.geometry, self.basis, matrices,
+        #                                                         vectors, 
+        #                                                         dimensions, 
+        #                                                         integers,
+        #                                                         name,
+        #                                                         booleans, 
+        #                                                         floats)
 
         self.wfn = wfn
 
@@ -537,12 +585,15 @@ class RMolecule(Molecule):
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
+    def get_xc(self, Da, Db, Ca, Cb, 
+               get_ingredients, get_orbitals):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc, ingredients, orbitals = xc(Da, Ca, self.Vpot, get_ingredients, get_orbitals)
+        ks_e, Vxc, ingredients, orbitals, grid, potential = xc(Da, Ca, 
+                                              self.wfn, self.Vpot,
+                                              get_ingredients, get_orbitals)
 
-        return ks_e, Vxc, Vxc, ingredients, orbitals
+        return ks_e, Vxc, Vxc, ingredients, orbitals, grid, potential
 
 class UMolecule(Molecule):
 
@@ -564,9 +615,12 @@ class UMolecule(Molecule):
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
 
-    def get_xc(self, Da, Db, Ca, Cb, get_ingredients, get_orbitals):
+    def get_xc(self, Da, Db, Ca, Cb, 
+               get_ingredients, get_orbitals):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
-        ks_e, Vxc_a, Vxc_b, ingredients, orbitals = u_xc(Da, Db, Ca, Cb, self.Vpot, get_ingredients, get_orbitals)
+        ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential = u_xc(Da, Db, Ca, Cb, 
+                                                        self.wfn, self.Vpot,
+                                                        get_ingredients, get_orbitals)
         
-        return ks_e, Vxc_a, Vxc_b, ingredients, orbitals
+        return ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential
