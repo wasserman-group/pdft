@@ -41,6 +41,11 @@ def hydrogen():
 def test_LDA_energy_restricted(he_dimer):
 
     psi4.core.clean()
+
+    psi4.set_options({
+                  "DFT_SPHERICAL_POINTS" : 26,
+                  "DFT_RADIAL_POINTS":     12,
+
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=he_dimer)
     helium = pdft.RMolecule(he_dimer, "cc-pVDZ", "SVWN")
     helium.scf()
@@ -51,6 +56,10 @@ def test_LDA_energy_restricted(he_dimer):
 def test_LDA_unrestricted_two_shells(he_dimer):
 
     psi4.core.clean()
+
+    psi4.set_options({
+                "DFT_SPHERICAL_POINTS" : 26,
+                "DFT_RADIAL_POINTS":     12,
 
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=he_dimer)
@@ -63,6 +72,10 @@ def test_LDA_unrestricted_two_shells(he_dimer):
 def test_LDA_unrestricted_one_shell(hydrogen):
 
     psi4.core.clean()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 26,
+            "DFT_RADIAL_POINTS":     12,
 
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=hydrogen)
