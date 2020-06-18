@@ -46,7 +46,7 @@ def functional_factory(method, restricted, deriv=1, points=500000):
 
 def xc(D, C,
        wfn, Vpot,
-       ingredients, orbitals):
+       ingredients, orbitals, vks=None):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation
@@ -216,13 +216,13 @@ def xc(D, C,
             if ingredients is True:
                 tau["tau_a"].append(tau_a/2.0)
                 tau["tau_b"].append(tau_a/2.0)
-                #Laplacian missing for restricted
+                #tofix laplacian not present
                 laplacian["la_x"].append(d_xx/2.0)
                 laplacian["la_y"].append(d_yy/2.0)
                 laplacian["la_z"].append(d_zz/2.0)
-                laplacian["la_x"].append(d_xx/2.0)
-                laplacian["la_y"].append(d_yy/2.0)
-                laplacian["la_z"].append(d_zz/2.0)
+                laplacian["lb_x"].append(d_xx/2.0)
+                laplacian["lb_y"].append(d_yy/2.0)
+                laplacian["lb_z"].append(d_zz/2.0)
 
         #Obtain Kernel
         ret = func.compute_functional(points_func.point_values(), -1)
@@ -231,7 +231,12 @@ def xc(D, C,
         vk = np.array(ret["V"])[:npoints]
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
-        v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
+
+        if vks is None:
+            v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
+        else:
+            vrho_a = vks[b][:npoints]
+
         v_rho_a_dict = v_rho_a.copy()    
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
 
@@ -281,6 +286,9 @@ def xc(D, C,
     for i_key in gamma.keys():
         gamma[i_key] = np.array(gamma[i_key])
 
+    for i_key in grid.keys():
+        grid[i_key] = np.array(grid[i_key])
+
     density_ingredients = {"density"  : density,
                            "gradient" : gradient,
                            "laplacian": laplacian,
@@ -296,7 +304,7 @@ def xc(D, C,
 
 def u_xc(D_a, D_b, Ca, Cb, 
         wfn, Vpot,
-        ingredients, orbitals):
+        ingredients, orbitals, vks=None): #-> e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary, grid, potential
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -528,8 +536,12 @@ def u_xc(D_a, D_b, Ca, Cb,
         vk = np.array(ret["V"])[:npoints]
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
-        v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
-        v_rho_b = np.array(ret["V_RHO_B"])[:npoints]   
+        if vks is None:
+            v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
+            v_rho_b = np.array(ret["V_RHO_B"])[:npoints]
+        else: 
+            v_rho_a = vks[b][:npoints] 
+            v_rho_b = vks[b][:npoints]
         potential["vxc_a"].append(v_rho_a)
         potential["vxc_b"].append(v_rho_b)
 
@@ -596,6 +608,9 @@ def u_xc(D_a, D_b, Ca, Cb,
 
     for i_key in gamma.keys():
         gamma[i_key] = np.array(gamma[i_key])
+
+    for i_key in grid.keys():
+        grid[i_key] = np.array(grid[i_key])
 
     dfa_ingredients = {"density"  : density,
                        "gradient" : gradient,
