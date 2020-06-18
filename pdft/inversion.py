@@ -3,6 +3,8 @@ from opt_einsum import contract
 import matplotlib.pyplot as plt
 import psi4
 
+from .xc import u_xc
+
 class Inversion():
     def __init__(self, fragments, molecule):
         
@@ -465,6 +467,7 @@ class Inversion():
         """
         Obtains average local electron energy 
         10.1021/acs.jctc.8b00717
+        
         From equation 15
         """
         #produce e^{-ks}
@@ -491,18 +494,123 @@ class Inversion():
             num /= db[block]
             epsilon_ks_b.append(num)
         
-        return [epsilon_ks_a, epsilon_ks_b]
+        return [np.array(epsilon_ks_a), np.array(epsilon_ks_b)]
 
-    # def get_vext_tilde(self):
-    #     """
-    #     Obtains the numerically evaluated external potential solved for via KSDFT
-    #     with any nonhybrid XC functional.
-    #     10.1021/acs.jctc.8b00717
-    #     From equation 22
-    #     """
+    def get_vext_tilde(self):
+        """
+        Obtains the numerically evaluated external potential solved for via KSDFT
+        with any nonhybrid XC functional.
+        10.1021/acs.jctc.8b00717
+        From equation 22
+        """
 
-    #     e_ks = self.get_epsilon_ks()
+        e_ks = self.get_epsilon_ks()
+        e_ks = e_ks[0] + e_ks[1]
+        tau = self.molecule.ingredients["tau"]["tau_a"]
+        density = self.molecule.ingredients["density"]["da"] + self.molecule.ingredients["density"]["db"]
+        vha     = self.molecule.potential["vha"]
+        vxc     = self.molecule.potential["vxc_a"]
 
-    #     v_ext_tilde = []
-    #     for block in range(self.nblocks):
+        vext_tilde = e_ks - tau/density - vha - vxc
+
+        # mid_points = []
+        # z_points   = []
+        # for i_block in range(len(vext_tilde)):
+        #     for i_point in range(len(vext_tilde[i_block])):
+        #         if np.abs(self.molecule.grid["x"][i_block][i_point]) < 1e-11:
+        #             if np.abs(self.molecule.grid["y"][i_block][i_point]) < 1e-11:
+        #                     mid_points.append(np.abs(vext_tilde[i_block][i_point] - self.molecule.potential["vext"][i_block][i_point]))
+        #                     z_points.append(self.molecule.grid["z"][i_block][i_point])
+
+        # mid_points = np.array(mid_points)
+        # z_points = np.array(z_points)
+        # indx = z_points.argsort()
+        # mid_points = mid_points[indx]
+
+        # print(mid_points[int(len(mid_points)/2)])
+
+        # return vext_tilde + mid_points[int(len(mid_points)/2)]
+
+        return vext_tilde + 1.99
+
+    def carter_staroverov(self, target_wfn, Vpot, max_iter=50):
+        """
+        LDA guess density-to-potential inversion
+        10.1021/acs.jctc.8b00717
+
+        Parameters
+        ----------
+        target_wfn : psi4.wfn
+            psi4.wfn from target calculation
+
+        Returns
+        -------
+        vxc_eff : np.array
+            "exact" vxc from target density at basis accuracy
+        """
+
+        Da_target = target_wfn.Da_subset("AO")
+        Db_target = target_wfn.Db_subset("AO")
+        Ca_target = target_wfn.Ca_subset("AO", "ALL").np
+        Cb_target = target_wfn.Cb_subset("AO", "ALL").np
+
+        _, _, _, ingredients, orbitals, grid, potential = u_xc(Da_target, Db_target, Ca_target, Cb_target,
+                                                               target_wfn, Vpot, True, True)
+
+
+        #Ingredients from target system
+        n = ingredients["density"]["da"] + ingredients["density"]["db"]
+        g  = ingredients["gradient"]["da_x"] + ingredients["gradient"]["da_y"] + ingredients["gradient"]["da_z"]
+        g += ingredients["gradient"]["db_z"] + ingredients["gradient"]["db_y"] + ingredients["gradient"]["db_z"]
+        l  = ingredients["laplacian"]["la_x"] + ingredients["laplacian"]["la_y"] + ingredients["laplacian"]["la_z"]
+        l += ingredients["laplacian"]["lb_x"] + ingredients["laplacian"]["lb_y"] + ingredients["laplacian"]["lb_z"]
+        t = ingredients["tau"]["tau_a"] + ingredients["tau"]["tau_b"]
+        vha = potential["vha"]
+        vext_tilde = self.get_vext_tilde()
+
+        #First scf 
+        t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
+        n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
+        epsilon_ks = self.get_epsilon_ks()
+        epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
+
+        orb_a = self.molecule.eigs_a.np.copy()
+        orb_b = self.molecule.eigs_b.np.copy()
+
+        #SCF Cycle
+        #Equation 23
+        vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)** + epsilon_ks - t_ks/n_ks - vext_tilde - vha
+
+        self.molecule.axis_plot_r([vks_eff], yrange=[-5, 0.2])
+
+        for i in range(max_iter):
+
+            self.molecule.scf(vks=vks_eff, get_ingredients=True, get_orbitals=True, get_matrices=True)
+
+            t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
+            n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
+            epsilon_ks = self.get_epsilon_ks()
+            epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
+
+            vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)**2 + epsilon_ks - t_ks/n_ks - vext_tilde - vha
+
+            #Plot each term of the vks_eff
+            # self.molecule.axis_plot_r(l/n, ])
+
+            self.molecule.axis_plot_r([vks_eff / vha], yrange=[-5, 0.2], xrange=[-8,8])
+
+
+            
+        #Target density/gradient/laplacian
+        # n = self.molecule.ingredients["density"]
+        # g = self.molecule.ingredients["gradient"]
+        # l = self.molecule.ingredients["laplacian"]
+
+        # n = n["na"] + n["nb"]
+        # g  = g["da_x"] + g["da_y"] + g["da_z"]
+        # g += g["db_x"] + g["db_y"] + g["db_z"]
+        # l  = l["la_x"] + l["la_y"] + l["la_z"]
+        # l += l["lb_x"] + l["lb_y"] + l["lb_z"]
+
+        #Guess
 
