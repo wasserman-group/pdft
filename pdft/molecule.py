@@ -145,7 +145,7 @@ class Molecule():
         D = psi4.core.doublet(Cocc, Cocc, False, True)
         return C, Cocc, D, eigvecs
 
-    def scf(self, maxiter=40, vp_mn=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
+    def scf(self, maxiter=40, vp_mn=None, vks=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
         """
         Performs scf cycle
 
@@ -228,7 +228,7 @@ class Molecule():
 
             #Exchange Correlation
             ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
-                                                                                             False, False)
+                                                                                             False, False, vks)
             #XC already scaled by alpha
             Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
             Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
@@ -287,7 +287,7 @@ class Molecule():
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
 
         ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
-                                                                          get_ingredients=get_ingredients, get_orbitals=get_orbitals)
+                                                                          get_ingredients=get_ingredients, get_orbitals=get_orbitals, vks=vks)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
@@ -392,7 +392,9 @@ class Molecule():
         if blocks is False: 
             return full_mat, [x,y,z,full_w] 
 
-    def axis_plot_r(self, functions, axis="z", labels=None, xrange=None, yrange=None, threshold=1e-11):
+    def axis_plot_r(self, functions, axis="z", labels=None, 
+                                               xrange=None, 
+                                               yrange=None, logplot=False, threshold=1e-11):
 
         y_out_arrays = []
 
@@ -413,6 +415,20 @@ class Molecule():
                             if np.abs(y[i_point]) < threshold:
                                 x_out.append(z[i_point])
                                 y_out.append(function[block][i_point])
+                
+                elif axis == "x":
+                    for i_point in range(len(x)):
+                        if np.abs(y[i_point]) < threshold:
+                            if np.abs(z[i_point]) < threshold:
+                                x_out.append(x[i_point])
+                                y_out.append(function[block][i_point])
+
+                elif axis == "y":
+                    for i_point in range(len(x)):
+                        if np.abs(x[i_point]) < threshold:
+                            if np.abs(z[i_point]) < threshold:
+                                x_out.append(y[i_point])
+                                y_out.append(function[block][i_point])
 
 
             x_out = np.array(x_out)
@@ -423,6 +439,8 @@ class Molecule():
 
             if labels is None:
                 plt.plot(x_out,y_out)
+                if logplot is not False:
+                    plt.xscale('log')
             elif labels is not None:
                 plt.plot(x_out,y_out,label=labels[j])
                 plt.legend()
@@ -584,14 +602,15 @@ class RMolecule(Molecule):
             self.functional = functional_factory(self.method, self.restricted, deriv=1)
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
+        self.nblocks = self.Vpot.nblocks()
 
     def get_xc(self, Da, Db, Ca, Cb, 
-               get_ingredients, get_orbitals):
+               get_ingredients, get_orbitals, vks):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
         ks_e, Vxc, ingredients, orbitals, grid, potential = xc(Da, Ca, 
                                               self.wfn, self.Vpot,
-                                              get_ingredients, get_orbitals)
+                                              get_ingredients, get_orbitals, vks)
 
         return ks_e, Vxc, Vxc, ingredients, orbitals, grid, potential
 
@@ -614,13 +633,14 @@ class UMolecule(Molecule):
 
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
+        self.nblocks = self.Vpot.nblocks()
 
     def get_xc(self, Da, Db, Ca, Cb, 
-               get_ingredients, get_orbitals):
+               get_ingredients, get_orbitals, vks):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
         ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential = u_xc(Da, Db, Ca, Cb, 
                                                         self.wfn, self.Vpot,
-                                                        get_ingredients, get_orbitals)
+                                                        get_ingredients, get_orbitals, vks)
         
         return ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential
