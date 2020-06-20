@@ -394,9 +394,12 @@ class Molecule():
 
     def axis_plot_r(self, functions, axis="z", labels=None, 
                                                xrange=None, 
-                                               yrange=None, logplot=False, threshold=1e-11):
+                                               yrange=None, 
+                                               logplot=False, return_array=False, 
+                                               threshold=1e-11):
 
         y_out_arrays = []
+        x_out_array = []
 
         for j, function in enumerate(functions):
 
@@ -450,8 +453,14 @@ class Molecule():
                 plt.xlim(xrange)
             if yrange is not None:
                 plt.ylim(yrange)
+            
+            y_out_arrays.append(y_out)
+        x_out_array = x_out
 
         plt.show()
+
+        if return_array is True:
+            return x_out_array, y_out_arrays
 
     def axis_plot(self, axis, matrices, labels=None, xrange=None, yrange=None, threshold=1e-11, 
                   return_array=False):

@@ -470,7 +470,7 @@ class Inversion():
         
         From equation 15
         """
-        #produce e^{-ks}
+
         na = self.molecule.nalpha
         nb = self.molecule.nbeta
         orb_a = self.molecule.orbitals["alpha_r"]
@@ -506,7 +506,7 @@ class Inversion():
 
         e_ks = self.get_epsilon_ks()
         e_ks = e_ks[0] + e_ks[1]
-        tau = self.molecule.ingredients["tau"]["tau_a"]
+        tau     = self.molecule.ingredients["tau"]["tau_a"] + self.molecule.ingredients["tau"]["tau_a"] 
         density = self.molecule.ingredients["density"]["da"] + self.molecule.ingredients["density"]["db"]
         vha     = self.molecule.potential["vha"]
         vxc     = self.molecule.potential["vxc_a"]
@@ -579,7 +579,7 @@ class Inversion():
 
         #SCF Cycle
         #Equation 23
-        vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)** + epsilon_ks - t_ks/n_ks - vext_tilde - vha
+        vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)**2 + epsilon_ks - t_ks/n_ks - vext_tilde - vha
 
         self.molecule.axis_plot_r([vks_eff], yrange=[-5, 0.2])
 
