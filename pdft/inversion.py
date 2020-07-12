@@ -484,12 +484,15 @@ class Inversion():
         eigs_b = self.molecule.eigs_b.np
 
         if eigs_a0 is not None:
-            eigs_a[self.molecule.nalpha] = eigs_a0[self.molecule.nalpha]
-            eigs_b[self.molecule.nbeta] = eigs_b0[self.molecule.nbeta]
+            #Displace energy according to step 3 of 2.2.3
+            energy_displacer_a = eigs_a[self.molecule.nalpha] - eigs_a0[self.molecule.nalpha]
+            energy_displacer_b = eigs_b[self.molecule.nalpha] - eigs_b0[self.molecule.nalpha]
+
+            eigs_a += energy_displacer_a
+            eigs_b += energy_displacer_b
 
         da = self.molecule.ingredients["density"]["da"]
         db = self.molecule.ingredients["density"]["db"]
-
 
         epsilon_ks_a = []        
         for block in range(self.nblocks):
@@ -570,7 +573,6 @@ class Inversion():
         _, _, _, ingredients, _, _, potential = u_xc(Da_target, Db_target, Ca_target, Cb_target,
                                                                target_wfn, Vpot, True, True)
 
-
         #Ingredients from target system
         n  = ingredients["density"]["da"] + ingredients["density"]["db"]
         g  = (ingredients["gradient"]["da_x"].copy() + ingredients["gradient"]["db_x"].copy())**2
@@ -586,16 +588,19 @@ class Inversion():
         vha = potential["vha"]
         vext_tilde = self.get_vext_tilde()
 
-        #Initial Guess
-        t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
-        n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
-        epsilon_ks = self.get_epsilon_ks()
-        epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
-
+        #Fix orbital energies 
         orb_a = self.molecule.eigs_a.np.copy()
         orb_b = self.molecule.eigs_b.np.copy()
 
-        #SCF Cycle | Equation 23
+        #Components for Initial guess
+        t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
+        n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
+
+        #Shift orbitals energies as Step 3
+        epsilon_ks = self.get_epsilon_ks(orb_a, orb_b)
+        epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
+
+        #Initial Guess | Equation 23
         vks_eff = 0.25 * l/n - g/(8*np.abs(n)**2) + epsilon_ks - t_ks/n_ks - vext_tilde - vha
 
         #Plot current vks_eff
@@ -603,15 +608,20 @@ class Inversion():
 
         for i in range(max_iter):
 
+            #Solve self consistently for new vks_eff
             self.molecule.scf(vks=vks_eff, get_ingredients=True, get_orbitals=True, get_matrices=True)
 
+            #Update compotents for vks_eff
             t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
             n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
-            epsilon_ks = self.get_epsilon_ks()
+
+            #Shift orbitals energies as Step 3
+            epsilon_ks = self.get_epsilon_ks(orb_a, orb_b)
             epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
 
             vks_eff = 0.25 * l/n - g/(8*np.abs(n)**2) + epsilon_ks - t_ks/n_ks - vext_tilde - vha
 
+            #Plot current vks_eff
             self.molecule.axis_plot_r([vks_eff], xrange=[-8,8])
 
 
