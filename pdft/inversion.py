@@ -47,7 +47,7 @@ class Inversion():
         fra_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.frags[0].Vpot)
 
         if len(mol_points[0]) != len(fra_points[0]):
-            raise ValueError("Grid of fragments does not match Grid of molecule. Try incresing DFT_SPHERICAL_POINTS")
+            raise ValueError("Grid of fragments does not match Grid of molecule. Verify nuclei charges or use same Vpot")
 
         else:
             return self.molecule.Vpot.nblocks()
@@ -217,23 +217,27 @@ class Inversion():
         vp_b = psi4.core.Matrix(self.nbf, self.nbf)
 
         #GRID GUESSES
-        # if guess == "hartree":
-        #     vp_a_r = self.get_vha_nad()
-        #     vp_b_r = vp_a_r.copy()
+        if guess == "hartree":
+            vp_a_r = self.get_vha_nad()
+            vp_b_r = vp_a_r.copy()
 
-        # elif guess == "xc":
-        #     vp_a_r = self.get_vxc_nad()
-        #     vp_b_r = vp_a_r.copy()
+        elif guess == "xc":
+            vp_a_r = self.get_vxc_nad()
+            vp_b_r = vp_a_r.copy()
 
-        # elif guess == "hxc":
-        #     vp_a_r = self.get_vha_nad()
-        #     vp_a_r += self.get_vxc_nad()
-        #     vp_b_r = vp_a_r.copy()
+        elif guess == "hxc":
+            vp_a_r = self.get_vha_nad()
+            vp_a_r += self.get_vxc_nad()
+            vp_b_r = vp_a_r.copy()
 
-        # vp_a = self.reintegrate_ao(vp_a_r)
-        # vp_b = self.reintegrate_ao(vp_b_r)
-        # vp_a = psi4.core.Matrix.from_array(vp_a)
-        # vp_b = psi4.core.Matrix.from_array(vp_b)
+        else:
+            vp_a_r = np.zeros_like(self.get_vha_nad())
+            vp_a_r = np.zeros_like(self.get_vha_nad())
+
+        vp_a = self.reintegrate_ao(vp_a_r)
+        vp_b = self.reintegrate_ao(vp_b_r)
+        vp_a = psi4.core.Matrix.from_array(vp_a)
+        vp_b = psi4.core.Matrix.from_array(vp_b)
 
         l1_list = []
         ep_list = []
@@ -463,7 +467,7 @@ class Inversion():
 
         return dvp, dvp
 
-    def get_epsilon_ks(self):
+    def get_epsilon_ks(self, eigs_a0=None, eigs_b0=None):
         """
         Obtains average local electron energy 
         10.1021/acs.jctc.8b00717
@@ -475,14 +479,23 @@ class Inversion():
         nb = self.molecule.nbeta
         orb_a = self.molecule.orbitals["alpha_r"]
         orb_b = self.molecule.orbitals["beta_r"]
+
+        eigs_a = self.molecule.eigs_a.np
+        eigs_b = self.molecule.eigs_b.np
+
+        if eigs_a0 is not None:
+            eigs_a[self.molecule.nalpha] = eigs_a0[self.molecule.nalpha]
+            eigs_b[self.molecule.nbeta] = eigs_b0[self.molecule.nbeta]
+
         da = self.molecule.ingredients["density"]["da"]
         db = self.molecule.ingredients["density"]["db"]
+
 
         epsilon_ks_a = []        
         for block in range(self.nblocks):
             num = np.zeros_like(orb_a["0"][block])
             for i_occ in range(na):
-                num += self.molecule.eigs_a.np[:na][i_occ] * np.abs(orb_a[str(i_occ)][block])**2
+                num += eigs_a[:na][i_occ] * np.abs(orb_a[str(i_occ)][block])**2
             num /= da[block]
             epsilon_ks_a.append(num)
 
@@ -490,7 +503,7 @@ class Inversion():
         for block in range(self.nblocks):
             num = np.zeros_like(orb_b["0"][block])
             for i_occ in range(nb):
-                num += self.molecule.eigs_b.np[:nb][i_occ] * np.abs(orb_b[str(i_occ)][block])**2
+                num += eigs_b[:nb][i_occ] * np.abs(orb_b[str(i_occ)][block])**2
             num /= db[block]
             epsilon_ks_b.append(num)
         
@@ -554,21 +567,26 @@ class Inversion():
         Ca_target = target_wfn.Ca_subset("AO", "ALL").np
         Cb_target = target_wfn.Cb_subset("AO", "ALL").np
 
-        _, _, _, ingredients, orbitals, grid, potential = u_xc(Da_target, Db_target, Ca_target, Cb_target,
+        _, _, _, ingredients, _, _, potential = u_xc(Da_target, Db_target, Ca_target, Cb_target,
                                                                target_wfn, Vpot, True, True)
 
 
         #Ingredients from target system
-        n = ingredients["density"]["da"] + ingredients["density"]["db"]
-        g  = ingredients["gradient"]["da_x"] + ingredients["gradient"]["da_y"] + ingredients["gradient"]["da_z"]
-        g += ingredients["gradient"]["db_z"] + ingredients["gradient"]["db_y"] + ingredients["gradient"]["db_z"]
-        l  = ingredients["laplacian"]["la_x"] + ingredients["laplacian"]["la_y"] + ingredients["laplacian"]["la_z"]
-        l += ingredients["laplacian"]["lb_x"] + ingredients["laplacian"]["lb_y"] + ingredients["laplacian"]["lb_z"]
-        t = ingredients["tau"]["tau_a"] + ingredients["tau"]["tau_b"]
+        n  = ingredients["density"]["da"] + ingredients["density"]["db"]
+        g  = (ingredients["gradient"]["da_x"].copy() + ingredients["gradient"]["db_x"].copy())**2
+        g += (ingredients["gradient"]["da_y"].copy() + ingredients["gradient"]["db_y"].copy())**2
+        g += (ingredients["gradient"]["da_z"].copy() + ingredients["gradient"]["db_z"].copy())**2
+        l  = (ingredients["laplacian"]["la_x"].copy() 
+            +ingredients["laplacian"]["la_y"].copy() 
+            +ingredients["laplacian"]["la_z"].copy())
+        l += (ingredients["laplacian"]["lb_x"].copy() 
+             +ingredients["laplacian"]["lb_y"].copy() 
+             +ingredients["laplacian"]["lb_z"].copy())
+        t  = ingredients["tau"]["tau_a"] + ingredients["tau"]["tau_b"]
         vha = potential["vha"]
         vext_tilde = self.get_vext_tilde()
 
-        #First scf 
+        #Initial Guess
         t_ks = self.molecule.ingredients["tau"]["tau_a"].copy() + self.molecule.ingredients["tau"]["tau_b"].copy()
         n_ks = self.molecule.ingredients["density"]["da"].copy() + self.molecule.ingredients["density"]["db"].copy()
         epsilon_ks = self.get_epsilon_ks()
@@ -577,11 +595,11 @@ class Inversion():
         orb_a = self.molecule.eigs_a.np.copy()
         orb_b = self.molecule.eigs_b.np.copy()
 
-        #SCF Cycle
-        #Equation 23
-        vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)**2 + epsilon_ks - t_ks/n_ks - vext_tilde - vha
+        #SCF Cycle | Equation 23
+        vks_eff = 0.25 * l/n - g/(8*np.abs(n)**2) + epsilon_ks - t_ks/n_ks - vext_tilde - vha
 
-        self.molecule.axis_plot_r([vks_eff], yrange=[-5, 0.2])
+        #Plot current vks_eff
+        self.molecule.axis_plot_r([vks_eff], xrange=[-8,8])
 
         for i in range(max_iter):
 
@@ -592,12 +610,9 @@ class Inversion():
             epsilon_ks = self.get_epsilon_ks()
             epsilon_ks = epsilon_ks[0] + epsilon_ks[1]
 
-            vks_eff = 0.25 * l/n - np.abs(g)**2/8*np.abs(n)**2 + epsilon_ks - t_ks/n_ks - vext_tilde - vha
+            vks_eff = 0.25 * l/n - g/(8*np.abs(n)**2) + epsilon_ks - t_ks/n_ks - vext_tilde - vha
 
-            #Plot each term of the vks_eff
-            # self.molecule.axis_plot_r(l/n, ])
-
-            self.molecule.axis_plot_r([vks_eff / vha], yrange=[-5, 0.2], xrange=[-8,8])
+            self.molecule.axis_plot_r([vks_eff], xrange=[-8,8])
 
 
             
