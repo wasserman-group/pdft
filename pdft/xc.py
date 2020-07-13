@@ -49,7 +49,8 @@ def xc(D, C,
        ingredients, orbitals, vks=None):
     """
     Calculates the exchange correlation energy and exchange correlation
-    potential to be added to the KS matrix for a restricted calculation
+    potential to be added to the KS matrix for a restricted calculation. 
+    Warning: V_xc on grid only avaliable for LDA
 
     Parameters
     ----------
@@ -235,7 +236,7 @@ def xc(D, C,
         if vks is None:
             v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
         else:
-            vrho_a = vks[b][:npoints]
+            v_rho_a = vks[b][:npoints]
 
         v_rho_a_dict = v_rho_a.copy()    
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
@@ -247,7 +248,8 @@ def xc(D, C,
             Vtmp_gga += 2.0 * contract('pb,p,p,p,pa->ab', phi_z, v_gamma_aa, rho_z, w, phi)
 
             Vtmp += Vtmp_gga
-            v_rho_a_dict += contract('pm,mn,pn->p', phi, Vtmp_gga, phi)
+            #v_rho_a_dict += contract('pm,mn,pn->p', phi, Vtmp_gga, phi)
+            v_rho_a_dict += v_gamma_aa
 
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
@@ -308,6 +310,8 @@ def u_xc(D_a, D_b, Ca, Cb,
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
+    Warning: V_xc on grid only avaliable for LDA
+    
     Parameters
     ----------
     D_a: psi4.core.Matrix
@@ -416,7 +420,7 @@ def u_xc(D_a, D_b, Ca, Cb,
             grid["z"].append(z)
             grid["w"].append(w)
 
-        #Compute Hartree External
+            #Compute Hartree External
             #External
             vext_block = np.zeros(npoints)
             for atom in range(natoms):
@@ -542,8 +546,9 @@ def u_xc(D_a, D_b, Ca, Cb,
         else: 
             v_rho_a = vks[b][:npoints] 
             v_rho_b = vks[b][:npoints]
-        potential["vxc_a"].append(v_rho_a)
-        potential["vxc_b"].append(v_rho_b)
+
+        v_rho_a_dict = v_rho_a.copy()
+        v_rho_b_dict = v_rho_b.copy()
 
         Vtmp_a = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
         Vtmp_b = contract('pb,p,p,pa->ab', phi, v_rho_b, w, phi)
@@ -569,6 +574,9 @@ def u_xc(D_a, D_b, Ca, Cb,
             Vtmp_b += contract('pb, p, pa->ab', phi_y, yb, phi)
             Vtmp_b += contract('pb, p, pa->ab', phi_z, zb, phi)
 
+            # v_rho_a_dict += xa + ya + za
+            # v_rho_b_dict += xb + yb + zb
+
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
             v_tau_b = np.array(ret["V_TAU_B"])[:npoints]
@@ -581,9 +589,15 @@ def u_xc(D_a, D_b, Ca, Cb,
             Vtmp_b += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_y, v_tau_b, w, phi_y)
             Vtmp_b += 0.5 * contract( 'pb, p, p, pa -> ab' , phi_z, v_tau_b, w, phi_z)
 
+            # v_rho_a_dict += v_tau_a
+            # v_rho_b_dict += v_tau_b
+
         # Sum back to the correct place
         V_a[(lpos[:, None], lpos)] += 0.5 * (Vtmp_a + Vtmp_a.T)
         V_b[(lpos[:, None], lpos)] += 0.5 * (Vtmp_b + Vtmp_b.T)
+
+        potential["vxc_a"].append(v_rho_a)
+        potential["vxc_b"].append(v_rho_b)
 
     for i_key in potential.keys():
         potential[i_key] = np.array(potential[i_key])
