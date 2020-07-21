@@ -18,7 +18,7 @@ class Molecule():
 
     def __init__(self, geometry, basis, method, 
                  mints = None, jk = None, vpot = None,
-                 get_matrices=False, get_ingredients=False, get_orbitals=False):
+                 ):
         
         #basics
         self.geometry    = geometry
@@ -76,8 +76,6 @@ class Molecule():
         self.orbitals    = None
 
         #Options
-        self.get_ingredients = get_ingredients
-        self.get_orbitals    = get_orbitals
 
     def form_JK(self, K=True):
         """
@@ -160,12 +158,9 @@ class Molecule():
             vp_a = psi4.core.Matrix(self.nbf, self.nbf)
             vp_b = psi4.core.Matrix(self.nbf, self.nbf)
             Ca, Cocca, Da, eigs_a = self.build_orbitals(self.H, self.nalpha)
-            if self.restricted is True:
-                if self.nalpha != self.nbeta:
-                    raise ValueError("RMolecule can't be used with that electronic configuration")
-                Cb, Coccb, Db, eigs_b = Ca, Cocca, Da, eigs_a
-            elif self.restricted is False:
-                Cb, Coccb, Db, eigs_b = self.build_orbitals(self.H, self.nbeta)
+            #Set to X_b = X_a if restricted == True without depending on child class. 
+            Cb, Coccb, Db, eigs_b = self.build_orbitals(self.H, self.nbeta)
+                
         if vp_mn is not None:
             vp_a = vp_mn[0]
             vp_b = vp_mn[1]
@@ -272,8 +267,8 @@ class Molecule():
             #if np.mod(SCF_ITER, 5.0) == 0:
             #    print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'% (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
-            if abs(SCF_E - Eold) < E_conv:
-            #if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-3)):
+            #if abs(SCF_E - Eold) < E_conv:
+            if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-3)):
                break
 
             Eold = SCF_E
@@ -287,7 +282,9 @@ class Molecule():
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
 
         ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
-                                                                          get_ingredients=get_ingredients, get_orbitals=get_orbitals, vks=vks)
+                                                                                                    get_ingredients=get_ingredients, 
+                                                                                                    get_orbitals=get_orbitals, 
+                                                                                                    vks=vks)
 
         self.energetics = {"Core" : energy_core,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
@@ -446,7 +443,7 @@ class Molecule():
                     plt.xscale('log')
             elif labels is not None:
                 plt.plot(x_out,y_out,label=labels[j])
-                plt.legend()
+                plt.legend(fontsize=18)
             # if return_array is True:
             #     y_arrays.append((x_out,y_out))
             if xrange is not None:
@@ -597,21 +594,19 @@ class RMolecule(Molecule):
 
     def __init__(self, geometry, basis, method, 
                  mints=None, jk=None, vpot = None,
-                 get_matrices=True, get_ingredients=False, get_orbitals=False):
+                 ):
         super().__init__(geometry, basis, method, 
                          mints, jk, vpot,
-                         get_matrices, get_ingredients, get_orbitals)
-
-        self.restricted = True
+                         )
 
         #Psi4 objects 
-        if get_ingredients is True:
-            self.functional = functional_factory(self.method, self.restricted, deriv=2)
-        else:
-            self.functional = functional_factory(self.method, self.restricted, deriv=1)
+        self.functional = functional_factory(self.method, True, deriv=1)
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
         self.Vpot.initialize()
         self.nblocks = self.Vpot.nblocks()
+
+        if self.nalpha != self.nbeta:
+            raise ValueError("RMolecule can't be used with that electronic configuration")
 
     def get_xc(self, Da, Db, Ca, Cb, 
                get_ingredients, get_orbitals, vks):
@@ -627,18 +622,13 @@ class UMolecule(Molecule):
 
     def __init__(self, geometry, basis, method, 
                  mints = None, jk = None, vpot = None,
-                 get_matrices=True, get_ingredients=False, get_orbitals=False):
+                 ):
         super().__init__(geometry, basis, method, 
                         mints, jk, vpot, 
-                        get_matrices, get_ingredients, get_orbitals)
+                        )
 
         self.restricted = False
-
-        #Psi4 objects 
-        # if get_ingredients == True:
-        #     self.functional = functional_factory(self.method, self.restricted, deriv=2)
-        # else:
-        self.functional = functional_factory(self.method, self.restricted, deriv=2)
+        self.functional = functional_factory(self.method, False, deriv=1)
 
         self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
