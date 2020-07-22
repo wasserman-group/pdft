@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import psi4
 
 from .xc import u_xc
+from .inv.wuyang
+from .inv.oucarter
 
 class Inversion():
     def __init__(self, fragments, molecule):
@@ -47,7 +49,7 @@ class Inversion():
         fra_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.frags[0].Vpot)
 
         if len(mol_points[0]) != len(fra_points[0]):
-            raise ValueError("Grid of fragments does not match Grid of molecule. Verify nuclei charges or use same Vpot")
+            raise ValueError("Grid of fragments does not match Grid of molecule. Verify nuclei charges or use shared Vpot")
 
         else:
             return self.molecule.Vpot.nblocks()
@@ -337,16 +339,10 @@ class Inversion():
 
         #Bring grid information
         points_func = self.molecule.Vpot.properties()[0]
-        #points_func = self.frags[0].Vpot.properties()[0]
-
-        if self.nblocks != self.molecule.Vpot.nblocks():
-            raise Exception("Number of blocks is inconsistent")
         
         #Calculate denominator
-
         for block in range(self.molecule.Vpot.nblocks()):
             grid_block = self.molecule.Vpot.get_block(block)
-            #grid_block = self.frags[0].Vpot.get_block(block)
             points_func.compute_points(grid_block)
             npoints = grid_block.npoints()
             lpos = np.array(grid_block.functions_local_to_global())
@@ -371,19 +367,11 @@ class Inversion():
                                 num[r1, r2] = orb_a[str(i_occ)][block][r1] * orb_a[str(i_vir)][block][r1] * orb_a[str(i_vir)][block][r2] * orb_a[str(i_occ)][block][r2]        
                         x_a += num / den
 
-                # num = np.zeros((self.nbf, self.nbf))
-                # for i_occ in range(0,frag.nbeta):
-                #     for i_vir in range(frag.nbeta, frag.nbf):
-                #         num = orb_b[str(i_occ)][block] * orb_b[str(i_vir)][block] * orb_b[str(i_vir)][block] * orb_b[str(i_occ)][block]
-                #         den = frag.eigs_b.np[i_occ] - frag.eigs_b.np[i_vir]
-                #         x_b += num/den
+                        #Assume x_b = x_a
 
             dvp_block = np.zeros((npoints))
             for r1 in range(npoints):
                 dvp_block += (1 / (x_a[r1, :] + x_a[r1, :])) * dd[block] * w  
-
-            #xinv = 1 / (x_a + x_a)
-            #dvp_block = xinv * dd[block]
 
             vtmp = contract('pb,p,p,pa->ab', phi, dvp_block, w, phi)
             dvp[(lpos[:, None], lpos)] += 0.5 * (vtmp + vtmp.T)
@@ -408,64 +396,7 @@ class Inversion():
         dvp_b = dd_b
         return dvp_a, dvp_b 
 
-    def vp_zc(self, da_mn, db_mn, rcond=1e-6):
-
-        """
-        Performs the Zhang-Carter Inversion
-        J. Chem. Phys. 148, 034105 (2018)
-        """        
-
-        nbf = self.molecule.nbf
-        dd = da_mn + db_mn
-
-        nalpha =  self.molecule.nalpha
-        nbeta = self.molecule.nbeta
-        
-        for frag in self.frags:
-
-            if self.molecule.nalpha == self.molecule.nbeta:
-                
-                x = np.zeros((nbf, nbf, nbf, nbf))
-
-                Ca = frag.Ca.np 
-                Cb = frag.Cb.np
-
-                #eigs_a = frag.eigs_a.np[:nalpha,None] - frag.eigs_a.np[nalpha:]
-                #eigs_b = frag.eigs_b.np[:nbeta, None] - frag.eigs_b.np[nbeta:]
-
-                for i in range(0, self.molecule.nalpha):
-                    for a in range(self.molecule.nalpha, nbf):
-                        x += contract('mi, na, li, sa -> mnls', Ca[None,i], Ca[None,a], Ca[None,i], Ca[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-                        x += contract('mi, na, li, sa -> mnls', Cb[None,i], Cb[None,a], Cb[None,i], Cb[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
-                        #x += np.einsum('m, n, l, s -> mnls', Ca[:,i], Ca[:,a], Ca[:,i], Ca[:,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-                        #x += np.einsum('m, n, l, s -> mnls', Cb[:,i], Cb[:,a], Cb[:,i], Cb[:,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
-
-
-                #x_y += np.einsum('mi, na, li, sa, ia -> mnls', Ca[:,:nalpha], Ca[:,nalpha:], Ca[:,:nalpha], Ca[:,nalpha:], np.reciprocal(eigs_a),optimize=True)
-                #x_y += np.einsum('mi, na, li, sa, ia -> mnls', Cb[:,:nbeta], Cb[:,nbeta:], Cb[:,:nbeta], Cb[:,nbeta:], np.reciprocal(eigs_b),optimize=True)
-
-            # else:
-
-            #     xa = np.zeros((nbf, nbf, nbf, nbf))
-            #     xb = np.zeros((nbf, nbf, nbf, nbf))
-
-            #     for i in range(0, self.molecule.nalpha):
-            #         for a in range(self.molecule.nalpha, nbf):
-            #             xa += np.einsum('m, n, l, s -> mnls', frag.C_a.np[None,i], frag.C_a.np[None,a], frag.C_a.np[None,i], frag.C_a.np[None,a], optimize=True) / (frag.eigs_a.np[i] - frag.eigs_a.np[a])
-
-            #     for i in range(0, self.molecule.nbeta):
-            #         for a in range(self.molecule.nbeta, nbf):
-            #             xb += np.einsum('m, n, l, s -> mnls', frag.C_b.np[None,i], frag.C_b.np[None,a], frag.C_b.np[None,i], frag.C_b.np[None,a], optimize=True) / (frag.eigs_b.np[i] - frag.eigs_b.np[a])
-
-
-
-        #x = 0.5 * (x + x.T)
-        x_inv = np.linalg.pinv(x)
-        #print("min value of x_inv", np.min(np.abs(x_inv)))
-        dvp = contract('mnls, ls -> mn', x_inv, dd)
-        dvp = 0.5 * (dvp + dvp.T)
-
-        return dvp, dvp
+    #Methods for Ou Carter Inversion
 
     def get_epsilon_ks(self, eigs_a0=None, eigs_b0=None):
         """
@@ -529,25 +460,7 @@ class Inversion():
 
         vext_tilde = e_ks - tau/density - vha - vxc
 
-        # mid_points = []
-        # z_points   = []
-        # for i_block in range(len(vext_tilde)):
-        #     for i_point in range(len(vext_tilde[i_block])):
-        #         if np.abs(self.molecule.grid["x"][i_block][i_point]) < 1e-11:
-        #             if np.abs(self.molecule.grid["y"][i_block][i_point]) < 1e-11:
-        #                     mid_points.append(np.abs(vext_tilde[i_block][i_point] - self.molecule.potential["vext"][i_block][i_point]))
-        #                     z_points.append(self.molecule.grid["z"][i_block][i_point])
-
-        # mid_points = np.array(mid_points)
-        # z_points = np.array(z_points)
-        # indx = z_points.argsort()
-        # mid_points = mid_points[indx]
-
-        # print(mid_points[int(len(mid_points)/2)])
-
-        # return vext_tilde + mid_points[int(len(mid_points)/2)]
-
-        return vext_tilde + 1.99
+        return vext_tilde
 
     def carter_staroverov(self, target_wfn, Vpot, max_iter=50):
         """
@@ -624,18 +537,4 @@ class Inversion():
             #Plot current vks_eff
             self.molecule.axis_plot_r([vks_eff], xrange=[-8,8])
 
-
-            
-        #Target density/gradient/laplacian
-        # n = self.molecule.ingredients["density"]
-        # g = self.molecule.ingredients["gradient"]
-        # l = self.molecule.ingredients["laplacian"]
-
-        # n = n["na"] + n["nb"]
-        # g  = g["da_x"] + g["da_y"] + g["da_z"]
-        # g += g["db_x"] + g["db_y"] + g["db_z"]
-        # l  = l["la_x"] + l["la_y"] + l["la_z"]
-        # l += l["lb_x"] + l["lb_y"] + l["lb_z"]
-
-        #Guess
 

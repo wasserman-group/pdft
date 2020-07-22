@@ -307,7 +307,7 @@ class Molecule():
             self.Db_0             = Db
 
         #Stores everything in wfn object
-        #self.set_wfn()
+        self.set_wfn()
 
     def basis_to_grid(self, mat, blocks=True):
         """
@@ -530,7 +530,7 @@ class Molecule():
         _, wfn = psi4.energy(self.method+"/"+self.basis_label, molecule=self.geometry, return_wfn=True)
 
         # matrices = {"Ca" : self.Ca, "Cb" : self.Cb, 
-        #             "Da" : self.Db, "Db" : self.Db,
+        #             "Da" : self.Da, "Db" : self.Db,
         #             "Fa" : self.Fa, "Fb" : self.Fb,
         #             "H"  : self.H,
         #             "S"  : self.S,
@@ -544,14 +544,14 @@ class Molecule():
         #            #"frequencies" : None
         #            }
 
-        # dimensions = {#"doccpi": None, 
-        #               #"soccpi" : None, 
-        #               #"frzcpi" : None, 
-        #               #"frzvpi" : None,
-        #               #"nalphapi" : None,
-        #               #"nbetapi" : None, 
-        #               #"nmopi" : None,
-        #               #"nsopi" : None
+        # dimensions = {"doccpi": wfn.doccpi(), 
+        #               "soccpi" : wfn.soccpi(), 
+        #               "frzcpi" : wfn.frzcpi(), 
+        #               "frzvpi" : wfn.frzvpi(),
+        #               "nalphapi" : wfn.nalphapi(),
+        #               "nbetapi" : wfn.nbetapi(), 
+        #               "nmopi" : wfn.nmopi(),
+        #               "nsopi" : wfn.nsopi()
         #               }
 
         # integers = {"nalpha" : self.nalpha, "nbeta" : self.nbeta, 
@@ -566,8 +566,8 @@ class Molecule():
         #         }
 
         # booleans = {#"PCM_enabled" : None, 
-        #             #"same_a_b_dens" : None, 
-        #             #"same_a_b_orbs" : None,
+        #             "same_a_b_dens" : True, 
+        #             "same_a_b_orbs" : True,
         #             #"density_fitted" : None,
         #             # 
         #             }
