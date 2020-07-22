@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import psi4
 
 from .xc import u_xc
-from .inv.wuyang
-from .inv.oucarter
+# from .inv.wuyang
+# from .inv.oucarter
 
 class Inversion():
     def __init__(self, fragments, molecule):
