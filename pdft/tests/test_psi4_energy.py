@@ -11,7 +11,6 @@ import pytest
 
 @pytest.fixture()
 def he_dimer():
-
     he2 = psi4.geometry("""
     0 1
 
