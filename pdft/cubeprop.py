@@ -224,48 +224,9 @@ def add_density(npoints, points, block, matrix):
         points.compute_points(block[i])
         n_points = block[i].npoints()
         offset += n_points
-        v[offset-n_points:offset] = 1.0 * rho.np[:n_points]
-
-    return v
-
-def add_orbital(npoints, points, block, matrix):
-    """
-    Computes density in new grid
-
-
-    Parameters
-    ----------
-
-    npoints: int
-        total number of points
-    points : psi4.core.RKSFunctions
-    block : list
-        Set of psi4.core.BlockOPoints for cube grid
-    matrix : psi4.core.Matrix
-        One-particle density matrix
-
-
-    Returns
-    -------
-
-    v : numpy array
-        Array with density values on the grid
-    """
-
-    v = np.zeros(int(npoints))
-
-    points.set_pointers(matrix)
-    rho = points.point_values()["RHO_A"]
-
-    offset = 0
-    for i in range(len(block)):
-        points.compute_points(block[i])
-        n_points = block[i].npoints()
-        offset += n_points
         v[offset-n_points:offset] = 0.5 * rho.np[:n_points]
 
     return v
-
 
 def compute_isocontour_range(v, npoints):
     """
@@ -328,7 +289,6 @@ def compute_isocontour_range(v, npoints):
 
     return values, cumulative_threshold
 
-
 def write_cube_file(wfn, O, N, D, nxyz, npoints, v, name, header):
 
     #Reorder the grid
@@ -377,7 +337,6 @@ def write_cube_file(wfn, O, N, D, nxyz, npoints, v, name, header):
 
     f.close()
 
-
 def compute_density(wfn, O, N, D, npoints, points, nxyz, block, matrix, name):
 
     v = add_density(npoints, points, block, matrix)
@@ -390,20 +349,6 @@ def compute_density(wfn, O, N, D, npoints, points, nxyz, block, matrix, name):
     write_cube_file(wfn, O, N, D, nxyz, npoints, v, name, header)
 
     return v
-
-def compute_orbitals(wfn, O, N, D, npoints, points, nxyz, block, matrix, name):
-    
-    v = add_density(npoints, points, block, matrix)
-    isocontour_range, threshold = compute_isocontour_range(v, npoints)
-
-    density_percent = 100.0 * threshold
-
-    header = F"""[e/a0^3]. Isocontour range for {density_percent} of the density ({format(isocontour_range[0], '1.5f')},{format(isocontour_range[1],'1.5f')}) \n"""
-
-    write_cube_file(wfn, O, N, D, nxyz, npoints, v, name, header)
-
-    return v
-
 
 def _getline(cube):
     """
