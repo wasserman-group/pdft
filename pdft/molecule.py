@@ -143,7 +143,10 @@ class Molecule():
         D = psi4.core.doublet(Cocc, Cocc, False, True)
         return C, Cocc, D, eigvecs
 
-    def scf(self, maxiter=40, vp_mn=None, vks=None, get_matrices=True, get_ingredients=False, get_orbitals=False):
+    def scf(self, maxiter=100, hamiltonian = ["kinetic", "external", "hartree", "xc"],
+                              vp_mn=None, xfock_nm = None,
+                              get_matrices=True, get_ingredients=False, get_orbitals=False,
+                              diis=False):
         """
         Performs scf cycle
 
@@ -154,21 +157,19 @@ class Molecule():
         """
 
         #Restricted/Unrestricted
-        if vp_mn is None:
-            vp_a = psi4.core.Matrix(self.nbf, self.nbf)
-            vp_b = psi4.core.Matrix(self.nbf, self.nbf)
+        #Initial Guess. 
+        if self.Da is None and self.Db is None:
             Ca, Cocca, Da, eigs_a = self.build_orbitals(self.H, self.nalpha)
             #Set to X_b = X_a if restricted == True without depending on child class. 
             Cb, Coccb, Db, eigs_b = self.build_orbitals(self.H, self.nbeta)
-                
-        if vp_mn is not None:
-            vp_a = vp_mn[0]
-            vp_b = vp_mn[1]
+
+        if self.Da is not None and self.Da is not None:
             Ca, Cocca, Da, eigs_a = self.Ca, self.Cocca, self.Da, self.eigs_a
             Cb, Coccb, Db, eigs_b = self.Cb, self.Coccb, self.Db, self.eigs_b
-
-        diisa_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest") 
-        diisb_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest")
+                
+        if diis is True:
+            diisa_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest") 
+            diisb_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest")
 
         Eold = 0.0
         E_conv = psi4.core.get_option("SCF", "E_CONVERGENCE")
@@ -187,106 +188,157 @@ class Molecule():
                 self.vxc_b = psi4.core.Matrix(self.nbf, self.nbf)
                 self.vee_a = psi4.core.Matrix(self.nbf, self.nbf)
                 self.vee_b = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vks_a = psi4.core.Matrix(self.nbf, self.nbf)
+                self.vks_b = psi4.core.Matrix(self.nbf, self.nbf)
+            
+            Fa = psi4.core.Matrix(self.nbf, self.nbf)
+            Fb = psi4.core.Matrix(self.nbf, self.nbf)
 
-            #Bring core matrix
-            Fa = self.H.clone()
-            Fb = self.H.clone()
+            if "kinetic" in hamiltonian: 
+                Fa.axpy(1.0, self.T.clone())
+                Fb.axpy(1.0, self.T.clone())
 
-            #Hartree
-            Fa.axpy(1.0, self.jk.J()[0])
-            Fa.axpy(1.0, self.jk.J()[1]) 
-            Fb.axpy(1.0, self.jk.J()[0])
-            Fb.axpy(1.0, self.jk.J()[1])    
+            if "external" in hamiltonian:
+                Fa.axpy(1.0, self.V.clone())
+                Fb.axpy(1.0, self.V.clone())
 
-            if get_matrices is True:
-                self.vha_a.axpy(1.0, self.jk.J()[0])
-                self.vha_a.axpy(1.0, self.jk.J()[1])             
-                self.vha_b.axpy(1.0, self.jk.J()[0])
-                self.vha_b.axpy(1.0, self.jk.J()[1]) 
-
-            #Exchange Hybrid?
-            if self.functional.is_x_hybrid() is True:
-                alpha = self.functional.x_alpha()
-                Fa.axpy(-alpha, self.jk.K()[0])
-                Fb.axpy(-alpha, self.jk.K()[1])
+            if "hartree" in hamiltonian:
+                Fa.axpy(1.0, self.jk.J()[0])
+                Fa.axpy(1.0, self.jk.J()[1]) 
+                Fb.axpy(1.0, self.jk.J()[0])
+                Fb.axpy(1.0, self.jk.J()[1])
 
                 if get_matrices is True:
-                    self.vee_a.axpy(-alpha, self.jk.K()[0])
-                    self.vee_b.axpy(-alpha, self.jk.K()[1])
+                    #Hartree
+                    self.vha_a.axpy(1.0, self.jk.J()[0])
+                    self.vha_a.axpy(1.0, self.jk.J()[1])             
+                    self.vha_b.axpy(1.0, self.jk.J()[0])
+                    self.vha_b.axpy(1.0, self.jk.J()[1])
+                    #Kohn_Sham Potential 
+                    self.vks_a.axpy(1.0, self.jk.J()[0])
+                    self.vks_a.axpy(1.0, self.jk.J()[1])
+                    self.vks_b.axpy(1.0, self.jk.J()[0])
+                    self.vks_b.axpy(1.0, self.jk.J()[1])
 
-            elif self.functional.is_x_hybrid() is False:
-                alpha = 0.0
+            if "xc" in hamiltonian:
+                if self.functional.is_x_hybrid() is True:
+                    alpha = self.functional.x_alpha()
+                    Fa.axpy(-alpha, self.jk.K()[0])
+                    Fb.axpy(-alpha, self.jk.K()[1])
 
-            #Correlation Hybrid?
-            if self.functional.is_c_hybrid() is True:
-                raise NameError("Correlation hybrids are not avaliable")
+                    if get_matrices is True:
+                        self.vee_a.axpy(-alpha, self.jk.K()[0])
+                        self.vee_b.axpy(-alpha, self.jk.K()[1])
+                        self.vxc_a.axpy(-alpha, self.jk.K()[0])
+                        self.vxc_b.axpy(-alpha, self.jk.K()[1])
+                else:
+                    alpha = 0.0
 
-            #Exchange Correlation
-            ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
-                                                                                             False, False, vks)
-            #XC already scaled by alpha
-            Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
-            Vxc_b = psi4.core.Matrix.from_array(Vxc_b)
-            Fa.axpy(1.0, Vxc_a)
-            Fb.axpy(1.0, Vxc_b)
-            Fa.axpy(1.0, vp_a)
-            Fb.axpy(1.0, vp_b)
+                #Correlation Hybrid?
+                if self.functional.is_c_hybrid() is True:
+                    raise NameError("Correlation hybrids are not avaliable")
 
-            if get_matrices is True:
+                #Exchange Correlation
+                ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
+                                                                                                False, False, vxc=None)
+
+                #XC already scaled by alpha  
+                Vxc_a = psi4.core.Matrix.from_array(Vxc_a)
+                Vxc_b = psi4.core.Matrix.from_array(Vxc_b)          
                 self.vxc_a.axpy(1.0, Vxc_a)
                 self.vxc_b.axpy(1.0, Vxc_b)
+                Fa.axpy(1.0, Vxc_a)
+                Fb.axpy(1.0, Vxc_b)
+                # Fa.axpy(1.0, vp_a)
+                # Fb.axpy(1.0, vp_b)
+
+                if get_matrices is True:
+                    self.vxc_a.axpy(1.0, Vxc_a)
+                    self.vxc_b.axpy(1.0, Vxc_b)
+
+            if "xxxtra" in hamiltonian:
+                if xfock_nm is None:
+                    raise NameError("You want to add an xxxtra component to Hamiltonian but didn't specify it")
+                Fa.axpy(1.0, xfock_nm[0])
+                Fb.axpy(1.0, xfock_nm[1])
 
             #DIIS
-            diisa_e = psi4.core.triplet(Fa, Da, self.S, False, False, False)
-            diisa_e.subtract(psi4.core.triplet(self.S, Da, Fa, False, False, False))
-            diisa_e = psi4.core.triplet(self.A, diisa_e, self.A, False, False, False)
-            diisa_obj.add(Fa, diisa_e)
+            if diis is True:
+                diisa_e = psi4.core.triplet(Fa, Da, self.S, False, False, False)
+                diisa_e.subtract(psi4.core.triplet(self.S, Da, Fa, False, False, False))
+                diisa_e = psi4.core.triplet(self.A, diisa_e, self.A, False, False, False)
+                diisa_obj.add(Fa, diisa_e)
 
-            diisb_e = psi4.core.triplet(Fb, Db, self.S, False, False, False)
-            diisb_e.subtract(psi4.core.triplet(self.S, Db, Fb, False, False, False))
-            diisb_e = psi4.core.triplet(self.A, diisb_e, self.A, False, False, False)
-            diisb_obj.add(Fb, diisb_e)
+                diisb_e = psi4.core.triplet(Fb, Db, self.S, False, False, False)
+                diisb_e.subtract(psi4.core.triplet(self.S, Db, Fb, False, False, False))
+                diisb_e = psi4.core.triplet(self.A, diisb_e, self.A, False, False, False)
+                diisb_obj.add(Fb, diisb_e)
 
-            dRMSa = diisa_e.rms()
-            dRMSb = diisb_e.rms()
+                dRMSa = diisa_e.rms()
+                dRMSb = diisb_e.rms()
+
+                dRMS = 0.5 * (np.mean(diisa_e.np**2)**0.5 + np.mean(diisb_e.np**2)**0.5)
+
+                Fa = diisa_obj.extrapolate()
+                Fb = diisb_obj.extrapolate()
 
             #Define Energetics
-            energy_core          =  1.0 * self.H.vector_dot(Da) + 1.0 * self.H.vector_dot(Db)
-            energy_hartree_a     =  0.5 * (self.jk.J()[0].vector_dot(Da) + self.jk.J()[1].vector_dot(Da))
-            energy_hartree_b     =  0.5 * (self.jk.J()[0].vector_dot(Db) + self.jk.J()[1].vector_dot(Db))
-            energy_exchange_a    = -0.5 * alpha * (self.jk.K()[0].vector_dot(Da))
-            energy_exchange_b    = -0.5 * alpha * (self.jk.K()[1].vector_dot(Db))
-            energy_ks            =  1.0 * ks_e
-            energy_partition     =  1.0 * vp_a.vector_dot(Da) + vp_b.vector_dot(Db)
-            energy_nuclear       =  1.0 * self.Enuc
+            if True:
+                if "kinetic" in hamiltonian:
+                    energy_kinetic = 1.0 * self.T.vector_dot(Da) + 1.0 * self.T.vector_dot(Db)
+                else:
+                    energy_kinetic = 0.0
 
-            SCF_E = energy_core + energy_hartree_a + energy_hartree_b + energy_partition + energy_ks + energy_exchange_a + energy_exchange_b + energy_nuclear 
+                if "external" in hamiltonian:
+                    energy_external = 1.0 * self.V.vector_dot(Da) + 1.0 * self.V.vector_dot(Db)
+                else:
+                    energy_external = 0.0
 
-            dRMS = 0.5 * (np.mean(diisa_e.np**2)**0.5 + np.mean(diisb_e.np**2)**0.5)
+                if "hartree" in hamiltonian:
+                    energy_hartree_a     =  0.5 * (self.jk.J()[0].vector_dot(Da) + self.jk.J()[1].vector_dot(Da))
+                    energy_hartree_b     =  0.5 * (self.jk.J()[0].vector_dot(Db) + self.jk.J()[1].vector_dot(Db))
+                else:
+                    energy_hartree_a = 0.0
+                    energy_hartree_b = 0.0
 
+                if "xc" in hamiltonian:
+                    energy_exchange_a    = -0.5 * alpha * (self.jk.K()[0].vector_dot(Da))
+                    energy_exchange_b    = -0.5 * alpha * (self.jk.K()[1].vector_dot(Db))
+                    energy_ks            =  1.0 * ks_e
+                else:
+                    energy_exchange_a    = 0.0
+                    energy_exchange_b    = 0.0
+                    energy_ks            = 0.0
+
+                if "xxxtra" in hamiltonian:
+                    #Warning, xxxtra energy should be able to be computed as a contraction. 
+                    energy_xtra_a = xfock_nm[0].vector_dot(Da)
+                    energy_xtra_b = xfock_nm[1].vector_dot(Db)
+
+            energy_nuclear = 1.0 * self.Enuc
+            energy_partition = 0.0
+            SCF_E = energy_kinetic + energy_external + energy_hartree_a + energy_hartree_b + energy_partition + energy_ks + energy_exchange_a + energy_exchange_b + energy_nuclear 
+           
             #if np.mod(SCF_ITER, 5.0) == 0:
             #    print('SCF Iter%3d: % 18.14f   % 11.7f   % 1.5E   %1.5E'% (SCF_ITER, SCF_E, ks_e, (SCF_E - Eold), dRMS))
 
-            #if abs(SCF_E - Eold) < E_conv:
-            if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-3)):
+            if abs(SCF_E - Eold) < E_conv:
+            #if (abs(SCF_E - Eold) < E_conv and abs(dRMS < 1e-5)):
                break
 
             Eold = SCF_E
 
-            #DIIS extrapolate
-            Fa = diisa_obj.extrapolate()
-            Fb = diisb_obj.extrapolate()
-
             #Diagonalize Fock matrix
             Ca, Cocca, Da, eigs_a = self.build_orbitals(Fa, self.nalpha)
             Cb, Coccb, Db, eigs_b = self.build_orbitals(Fb, self.nbeta)
-
-        ks_e, Vxc_a, Vxc_b, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
+        
+        ks_e, _, _, self.ingredients, self.orbitals, self.grid, self.potential = self.get_xc(Da, Db, Ca.np, Cb.np, 
                                                                                                     get_ingredients=get_ingredients, 
                                                                                                     get_orbitals=get_orbitals, 
-                                                                                                    vks=vks)
+                                                                                                    vxc=None)
 
-        self.energetics = {"Core" : energy_core,
+        self.energetics = {"Kinetic" : energy_kinetic,
+                           "External" : energy_external,
                            "Hartree" : energy_hartree_a + energy_hartree_b, 
                            "Exact Exchange" : energy_exchange_a + energy_exchange_b, 
                            "Exchange-Correlation" : energy_ks, 
@@ -299,13 +351,10 @@ class Molecule():
         self.Da, self.Db          = Da, Db
         self.Fa, self.Fb          = Fa, Fb
         self.Ca, self.Cb          = Ca, Cb
+        #self.vks_a, self.vks_b    = 
         self.Cocca, self.Coccb    = Cocca, Coccb
         self.eigs_a, self.eigs_b  = eigs_a, eigs_b
         
-        if vp_mn is None:
-            self.Da_0             = Da
-            self.Db_0             = Db
-
         #Stores everything in wfn object
         self.set_wfn()
 
@@ -368,10 +417,16 @@ class Molecule():
             nfunctions = lpos.shape[0]
 
             phi = np.array(points_func.basis_values()["PHI"])[:l_npoints, :nfunctions]
-            
-            l_mat = mat[(lpos[:, None], lpos)]
-            mat_r = contract('pm,mn,pn->p', phi, l_mat, phi)
-            frag_mat.append(mat_r[:l_npoints])
+
+            if mat.ndim == 2:
+                l_mat = mat[(lpos[:, None], lpos)]
+                mat_r = contract('pm,mn,pn->p', phi, l_mat, phi)
+
+            if mat.ndim == 1:
+                l_mat = mat[lpos]
+                mat_r =mat_r = contract('pm,m->p', phi, l_mat)
+
+            frag_mat.append((mat_r[:l_npoints]))
             #frag_mat.append(mat_r)
 
             for i in range(len(mat_r)):
@@ -385,9 +440,61 @@ class Molecule():
         full_w = np.array(fullw)
             
         if blocks is True:
-            return frag_mat, frag_w
+            return np.array(frag_mat), frag_w
         if blocks is False: 
             return full_mat, [x,y,z,full_w] 
+
+    def to_grid(self, Duv, Duv_b=None, vpot=None):
+        """
+        For any function on double ao basis: f(r) = Duv*phi_u(r)*phi_v(r), e.g. the density.
+        If Duv_b is not None, it will take Duv + Duv_b.
+        One should use the same wfn for all the fragments and the entire systems since different geometry will
+        give different arrangement of xyzw.
+        :return: The value of f(r) on grid points.
+        """
+        if vpot is None:
+            vpot = self.Vpot
+        points_func = vpot.properties()[0]
+        f_grid = np.array([])
+        # Loop over the blocks
+        if Duv.ndim == 2:
+            for b in range(vpot.nblocks()):
+                # Obtain block information
+                block = vpot.get_block(b)
+                points_func.compute_points(block)
+                npoints = block.npoints()
+                lpos = np.array(block.functions_local_to_global())
+
+                # Compute phi!
+                phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+
+                # Build a local slice of D
+                if Duv_b is None:
+                    lD = Duv[(lpos[:, None], lpos)]
+                else:
+                    lD = Duv[(lpos[:, None], lpos)] + Duv_b[(lpos[:, None], lpos)]
+                # Copmute rho
+                f_grid = np.append(f_grid, np.einsum('pm,mn,pn->p', phi, lD, phi))
+        elif Duv.ndim==1:
+            for b in range(vpot.nblocks()):
+                # Obtain block information
+                block = vpot.get_block(b)
+                points_func.compute_points(block)
+                npoints = block.npoints()
+                lpos = np.array(block.functions_local_to_global())
+
+                # Compute phi!
+                phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+
+                # Build a local slice of D
+                if Duv_b is None:
+                    lD = Duv[lpos]
+                else:
+                    lD = Duv[lpos] + Duv_b[lpos]
+
+                # Copmute rho
+                f_grid = np.append(f_grid, np.einsum('pm,m->p', phi, lD))
+        return f_grid
 
     def axis_plot_r(self, functions, axis="z", labels=None, 
                                                xrange=None, 
@@ -609,12 +716,12 @@ class RMolecule(Molecule):
             raise ValueError("RMolecule can't be used with that electronic configuration")
 
     def get_xc(self, Da, Db, Ca, Cb, 
-               get_ingredients, get_orbitals, vks):
+               get_ingredients, get_orbitals, vxc):
         self.Vpot.set_D([Da])
         self.Vpot.properties()[0].set_pointers(Da)
         ks_e, Vxc, ingredients, orbitals, grid, potential = xc(Da, Ca, 
                                               self.wfn, self.Vpot,
-                                              get_ingredients, get_orbitals, vks)
+                                              get_ingredients, get_orbitals, vxc)
 
         return ks_e, Vxc, Vxc, ingredients, orbitals, grid, potential
 
@@ -635,11 +742,11 @@ class UMolecule(Molecule):
         self.nblocks = self.Vpot.nblocks()
 
     def get_xc(self, Da, Db, Ca, Cb, 
-               get_ingredients, get_orbitals, vks):
+               get_ingredients, get_orbitals, vxc):
         self.Vpot.set_D([Da, Db])
         self.Vpot.properties()[0].set_pointers(Da, Db)  
         ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential = u_xc(Da, Db, Ca, Cb, 
                                                         self.wfn, self.Vpot,
-                                                        get_ingredients, get_orbitals, vks)
+                                                        get_ingredients, get_orbitals, vxc)
         
         return ks_e, Vxc_a, Vxc_b, ingredients, orbitals, grid, potential

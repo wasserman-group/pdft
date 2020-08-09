@@ -46,7 +46,7 @@ def functional_factory(method, restricted, deriv=1, points=500000):
 
 def xc(D, C,
        wfn, Vpot,
-       ingredients, orbitals, vks=None):
+       ingredients, orbitals, vxc=None):
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for a restricted calculation. 
@@ -233,10 +233,10 @@ def xc(D, C,
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
 
-        if vks is None:
+        if vxc is None:
             v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
         else:
-            v_rho_a = vks[b][:npoints]
+            v_rho_a = vxc[b][:npoints]
 
         v_rho_a_dict = v_rho_a.copy()    
         Vtmp = contract('pb,p,p,pa->ab', phi, v_rho_a, w, phi)
@@ -306,7 +306,7 @@ def xc(D, C,
 
 def u_xc(D_a, D_b, Ca, Cb, 
         wfn, Vpot,
-        ingredients, orbitals, vks=None): #-> e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary, grid, potential
+        ingredients, orbitals, vxc=None): #-> e_xc, V_a, V_b, dfa_ingredients, orbital_dictionary, grid, potential
     """
     Calculates the exchange correlation energy and exchange correlation
     potential to be added to the KS matrix for an unrestricted calculation
@@ -360,7 +360,8 @@ def u_xc(D_a, D_b, Ca, Cb,
     tau       = {"tau_a" : [],
                  "tau_b" : []}
 
-    potential = { "vxc_a"  : [],
+    potential = { "esp"    : [],
+                  "vxc_a"  : [],
                   "vxc_b"  : [], 
                   "vext"   : [],
                   "vha"    : []}
@@ -385,7 +386,8 @@ def u_xc(D_a, D_b, Ca, Cb,
     
     points_func = Vpot.properties()[0]
     #if ingredients is True :
-    points_func.set_ansatz(2)
+    #points_func.set_ansatz(2)
+    points_func.set_ansatz(0)
 
     func = Vpot.functional()
     e_xc = 0.0
@@ -431,7 +433,8 @@ def u_xc(D_a, D_b, Ca, Cb,
             grid_block = np.array((x,y,z)).T
             grid_block = psi4.core.Matrix.from_array(grid_block)
             esp_block = psi4.core.ESPPropCalc(wfn).compute_esp_over_grid_in_memory(grid_block).np
-            potential["vha"].append(-1.0 * esp_block - vext_block)
+            potential["esp"].append(esp_block)
+            potential["vha"].append(-1.0 * (esp_block + vext_block))
 
         #Compute phi/rho
         if points_func.ansatz() >= 0:
@@ -540,12 +543,12 @@ def u_xc(D_a, D_b, Ca, Cb,
         vk = np.array(ret["V"])[:npoints]
         e_xc += contract("a,a->", w, vk)
         #Compute the XC derivative
-        if vks is None:
+        if vxc is None:
             v_rho_a = np.array(ret["V_RHO_A"])[:npoints]  
             v_rho_b = np.array(ret["V_RHO_B"])[:npoints]
         else: 
-            v_rho_a = vks[b][:npoints] 
-            v_rho_b = vks[b][:npoints]
+            v_rho_a = vxc[b][:npoints] 
+            v_rho_b = vxc[b][:npoints]
 
         v_rho_a_dict = v_rho_a.copy()
         v_rho_b_dict = v_rho_b.copy()
