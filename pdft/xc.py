@@ -77,49 +77,52 @@ def xc(D, C,
     Vnm = np.zeros((nbf, nbf))
     total_e = 0.0
 
-    density   = {"da" : [],
-                 "db" : []}
+    #Define emtpy dictionaries
+    if True:
 
-    gradient  = {"da_x" : [], 
-                 "da_y" : [],
-                 "da_z" : [],
-                 "db_x" : [],
-                 "db_y" : [],
-                 "db_z" : []}
+        density   = {"da" : [],
+                    "db" : []}
 
-    laplacian = {"la_x" : [],
-                 "la_y" : [],
-                 "la_z" : [],
-                 "lb_x" : [],
-                 "lb_y" : [],
-                 "lb_z" : []}
+        gradient  = {"da_x" : [], 
+                    "da_y" : [],
+                    "da_z" : [],
+                    "db_x" : [],
+                    "db_y" : [],
+                    "db_z" : []}
 
-    gamma    =  {"g_aa" : [],
-                 "g_ab" : [],
-                 "g_bb" : []}
+        laplacian = {"la_x" : [],
+                    "la_y" : [],
+                    "la_z" : [],
+                    "lb_x" : [],
+                    "lb_y" : [],
+                    "lb_z" : []}
 
-    tau       = {"tau_a" : [],
-                 "tau_b" : []}
+        gamma    =  {"g_aa" : [],
+                    "g_ab" : [],
+                    "g_bb" : []}
 
-    potential = { "vxc_a"  : [],
-                  "vxc_b"  : [], 
-                  "vext"   : [],
-                  "vha"    : []}
+        tau       = {"tau_a" : [],
+                    "tau_b" : []}
 
-    grid      = {"x" : [],
-                 "y" : [],
-                 "z" : [],
-                 "w" : []}
+        potential = { "vxc_a"  : [],
+                    "vxc_b"  : [], 
+                    "vext"   : [],
+                    "vha"    : []}
 
-    orbitals_a = {}
-    orbitals_a_mn = {}
-    if orbitals  is True:
-        orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
-        orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
+        grid      = {"x" : [],
+                    "y" : [],
+                    "z" : [],
+                    "w" : []}
+
+        orbitals_a = {}
+        orbitals_a_mn = {}
+        if orbitals  is True:
+            orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
+            orbitals_a_mn = { str(i_orb) : np.zeros((nbf, nbf)) for i_orb in range(nbf) }
     
     points_func = Vpot.properties()[0]
-    if ingredients is True:
-        points_func.set_ansatz(2)
+    # if ingredients is True:
+    points_func.set_ansatz(2)
     func = Vpot.functional()
 
     e_xc = 0.0
@@ -143,7 +146,7 @@ def xc(D, C,
         lpos = np.array(block.functions_local_to_global())
         w = np.array(block.w())
 
-        #Store Grid
+        #Compute Hartree External
         if ingredients is True:
                     
             x =  np.array(block.x())
@@ -155,7 +158,6 @@ def xc(D, C,
             grid["z"].append(z)
             grid["w"].append(w)
 
-        #Compute Hartree External
             #External
             vext_block = np.zeros(npoints)
             for atom in range(natoms):
@@ -336,45 +338,64 @@ def u_xc(D_a, D_b, Ca, Cb,
     V_a = np.zeros((nbf, nbf))
     V_b = np.zeros((nbf, nbf))
 
-    density   = {"da" : [],
-                 "db" : []}
+    #Define empty dictionaries
+    if True:
 
-    gradient  = {"da_x" : [], 
-                 "da_y" : [],
-                 "da_z" : [],
-                 "db_x" : [],
-                 "db_y" : [],
-                 "db_z" : []}
+        density   = {"da" : [],
+                    "db" : []}
 
-    laplacian = {"la_x" : [],
-                 "la_y" : [],
-                 "la_z" : [],
-                 "lb_x" : [],
-                 "lb_y" : [],
-                 "lb_z" : []}
+        gradient  = {"da_x" : [], 
+                    "da_y" : [],
+                    "da_z" : [],
+                    "db_x" : [],
+                    "db_y" : [],
+                    "db_z" : []}
 
-    gamma    =  {"g_aa" : [],
-                 "g_ab" : [],
-                 "g_bb" : []}
+        laplacian = {"la_x" : [],
+                    "la_y" : [],
+                    "la_z" : [],
+                    "lb_x" : [],
+                    "lb_y" : [],
+                    "lb_z" : []}
 
-    tau       = {"tau_a" : [],
-                 "tau_b" : []}
+        gamma    =  {"g_aa" : [],
+                    "g_ab" : [],
+                    "g_bb" : []}
 
-    potential = { "esp"    : [],
-                  "vxc_a"  : [],
-                  "vxc_b"  : [], 
-                  "vext"   : [],
-                  "vha"    : []}
+        tau       = {"tau_a" : [],
+                    "tau_b" : []}
 
-    grid      = {"x" : [],
-                 "y" : [],
-                 "z" : [],
-                 "w" : []}
+        potential = { "esp"    : [],
+                    "vxc_a"  : [],
+                    "vxc_b"  : [], 
+                    "vext"   : [],
+                    "vha"    : []}
 
-    orbitals_a   = {}
-    orbitals_b   = {}
-    orbitals_a_mn  = {}
-    orbitals_b_mn  = {}
+        grid      = {"x" : [],
+                    "y" : [],
+                    "z" : [],
+                    "w" : []}
+
+        basis_set = {"gx" : None, 
+                    "gy" : None, 
+                    "gz" : None,
+                    "lx" : None, 
+                    "ly" : None, 
+                    "lz" : None}
+
+
+        orbitals_a   = {}
+        orbitals_b   = {}
+        orbitals_a_mn  = {}
+        orbitals_b_mn  = {}
+
+        if ingredients is True:
+            basis_set["lx"] = { str(i_orb) : [] for i_orb in range(nbf) }
+            basis_set["ly"] = { str(i_orb) : [] for i_orb in range(nbf) }
+            basis_set["lz"] = { str(i_orb) : [] for i_orb in range(nbf) }
+            basis_set["gx"] = { str(i_orb) : [] for i_orb in range(nbf) }
+            basis_set["gy"] = { str(i_orb) : [] for i_orb in range(nbf) }
+            basis_set["gz"] = { str(i_orb) : [] for i_orb in range(nbf) }
 
     if orbitals is True:
         orbitals_a    = { str(i_orb) : [] for i_orb in range(nbf) } 
@@ -385,9 +406,9 @@ def u_xc(D_a, D_b, Ca, Cb,
     total_e = 0.0
     
     points_func = Vpot.properties()[0]
-    #if ingredients is True :
-    #points_func.set_ansatz(2)
-    points_func.set_ansatz(0)
+
+    #if ingredients is True:
+    points_func.set_ansatz(2)
 
     func = Vpot.functional()
     e_xc = 0.0
@@ -411,6 +432,7 @@ def u_xc(D_a, D_b, Ca, Cb,
         lpos = np.array(block.functions_local_to_global())
         w = np.array(block.w())
 
+        #Compute Hartree/External
         if ingredients is True:
                     
             x =  np.array(block.x())
@@ -518,6 +540,28 @@ def u_xc(D_a, D_b, Ca, Cb,
                 sandwich += contract('pm, mn, pn ->p', phi, Db_reshaped, phi_zz)
                 laplacian["lb_z"].append(sandwich)
 
+                ##############Laplacian of basis set
+
+                for i_orb in range(nbf):
+                    if i_orb in lpos: 
+                        basis_set["lx"][str(i_orb)].append(phi_xx[:,list(lpos).index(i_orb)])
+                        basis_set["ly"][str(i_orb)].append(phi_xx[:,list(lpos).index(i_orb)])
+                        basis_set["lz"][str(i_orb)].append(phi_xx[:,list(lpos).index(i_orb)])
+
+                        basis_set["gx"][str(i_orb)].append(phi_x[:,list(lpos).index(i_orb)])
+                        basis_set["gy"][str(i_orb)].append(phi_y[:,list(lpos).index(i_orb)])
+                        basis_set["gz"][str(i_orb)].append(phi_z[:,list(lpos).index(i_orb)])
+
+                    else:
+                        basis_set["lx"][str(i_orb)].append(np.zeros_like(phi_xx[:,0]))
+                        basis_set["ly"][str(i_orb)].append(np.zeros_like(phi_yy[:,0]))
+                        basis_set["lz"][str(i_orb)].append(np.zeros_like(phi_zz[:,0]))
+
+
+                        basis_set["gx"][str(i_orb)].append(np.zeros_like(phi_x[:,0]))
+                        basis_set["gy"][str(i_orb)].append(np.zeros_like(phi_y[:,0]))
+                        basis_set["gz"][str(i_orb)].append(np.zeros_like(phi_z[:,0]))
+
                 gradient["da_x"].append(rho_ax)
                 gradient["da_y"].append(rho_ay)
                 gradient["da_z"].append(rho_az)
@@ -577,8 +621,8 @@ def u_xc(D_a, D_b, Ca, Cb,
             Vtmp_b += contract('pb, p, pa->ab', phi_y, yb, phi)
             Vtmp_b += contract('pb, p, pa->ab', phi_z, zb, phi)
 
-            # v_rho_a_dict += xa + ya + za
-            # v_rho_b_dict += xb + yb + zb
+#            v_rho_a_dict += (v_gamma_aa + v_gamma_ab) * w
+#            v_rho_b_dict += (v_gamma_aa + v_gamma_ab) * w
 
         if func.is_meta() is True:
             v_tau_a = np.array(ret["V_TAU_A"])[:npoints]
@@ -629,9 +673,36 @@ def u_xc(D_a, D_b, Ca, Cb,
     for i_key in grid.keys():
         grid[i_key] = np.array(grid[i_key])
 
+    if ingredients is True:
+        for i_key in basis_set["lx"].keys():
+            basis_set["lx"][i_key] = np.array(basis_set["lx"][i_key])
+
+        for i_key in basis_set["ly"].keys():
+            basis_set["ly"][i_key] = np.array(basis_set["ly"][i_key])
+
+        for i_key in basis_set["lz"].keys():
+            basis_set["lz"][i_key] = np.array(basis_set["lz"][i_key])
+
+        for i_key in basis_set["gx"].keys():
+            basis_set["gx"][i_key] = np.array(basis_set["gx"][i_key])
+
+        for i_key in basis_set["gy"].keys():
+            basis_set["gy"][i_key] = np.array(basis_set["gz"][i_key])
+
+        for i_key in basis_set["gz"].keys():
+            basis_set["gz"][i_key] = np.array(basis_set["gz"][i_key])
+
+
+
+        # for i_key in basis_set.keys():
+        #     basis_set[i_key] = np.array(basis_set[i_key])
+
+
+
     dfa_ingredients = {"density"  : density,
                        "gradient" : gradient,
                        "laplacian": laplacian,
+                       "basis"    : basis_set,
                        "gamma"    : gamma,
                        "tau"      : tau}
 

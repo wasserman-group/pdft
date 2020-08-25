@@ -151,11 +151,6 @@ class Inversion():
         self.ep = ep
 
     def reintegrate_ao(self, function):
-
-        print("This is my function shape")
-        print(function.shape)
-        print("Len of first block", function[0])
-
         f_nm = np.zeros((self.nbf, self.nbf))
         points_func = self.frags[0].Vpot.properties()[0]
 
@@ -415,9 +410,9 @@ class Inversion():
                                 xfock_nm=[self.initial_guess, self.initial_guess],
                                 get_ingredients=True)
 
-        dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
-        ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
-        print("\n |n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
+        # dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
+        # ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
+        # print("\n |n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
 
         v0 = np.zeros(int(self.nbf)*2)
 
@@ -426,7 +421,7 @@ class Inversion():
                                       jac=self.grad_WuYang,
                                       hess=self.hess_WuYang,
                                       method=opt_method,
-                                      options={'gtol': 1e-8, 'disp': False},
+                                      options={'disp': False},
                                       tol=None
                                       )
 
@@ -437,7 +432,7 @@ class Inversion():
 
         self.frags[0].scf(  maxiter=0,
                             hamiltonian=["kinetic", "external", "xxxtra"], xfock_nm=[Vks_a, Vks_b],
-                            get_ingredients=True)    
+                            get_ingredients=True, get_orbitals=True)    
         
         _, _, _, _, _, _, potential = u_xc( self.target.Da(), self.target.Db(), 
                                             self.target.Ca(), self.target.Cb(), 
@@ -449,18 +444,29 @@ class Inversion():
         target_hartree =              potential["vha"].copy()
         input_hartree = self.frags[0].potential["vha"].copy()
 
-        self.t_hartree= target_hartree
-        self.i_hartree = input_hartree
+        target_hartree_2 = potential["esp"].copy()
+        input_hartree_2 = self.frags[0].potential["esp"].copy()
 
-        dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
-        ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
-        print("|n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
+        # vext_tilde = self.get_vext_tilde()
+        # target_hartree_2 -= vext_tilde
+        # input_hartree_2 -= vext_tilde     
+
+        # self.vext_tilde = vext_tilde  
+        # self.t_2 = target_hartree_2
+        # self.i_2 = input_hartree_2
+
+        # self.t_hartree= target_hartree
+        # self.i_hartree = input_hartree
+
+        # dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
+        # ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
+        # print("|n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
 
         nocc = self.frags[0].nalpha + self.frags[0].nbeta
         vxc_a, _ = self.frags[0].basis_to_grid(vp_array.x[:self.nbf], blocks=True)
         vxc_b, _ = self.frags[0].basis_to_grid(vp_array.x[self.nbf:], blocks=True)
-        vxc_a += ((nocc -1)/nocc)*target_hartree - input_hartree
-        vxc_b += ((nocc -1)/nocc)*target_hartree  - input_hartree
+        vxc_a += (nocc -1)/nocc*target_hartree - input_hartree
+        vxc_b += (nocc -1)/nocc*target_hartree - input_hartree
         self.vxc_a = vxc_a.copy()
         self.vxc_b = vxc_b.copy()
 
@@ -603,6 +609,12 @@ class Inversion():
         density = self.molecule.ingredients["density"]["da"] + self.molecule.ingredients["density"]["db"]
         vha     = self.molecule.potential["vha"]
         vxc     = self.molecule.potential["vxc_a"]
+
+        print(e_ks.shape)
+        print(tau.shape)
+        print(density.shape)
+        print(vha.shape)
+        print(vxc.shape)
 
         vext_tilde = e_ks - tau/density - vha - vxc
 
