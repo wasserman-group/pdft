@@ -384,6 +384,38 @@ class Molecule():
         self.eigs_a, self.eigs_b = eigs_a, eigs_b
         #Stores everything in wfn object
         # self.set_wfn()
+        
+class RMolecule(Molecule):
+
+    def __init__(self, geometry, basis, method, 
+                 mints=None, jk=None, vpot = None,
+                 ):
+        super().__init__(geometry, basis, method, 
+                         mints, jk, vpot,
+                         )
+
+        #Psi4 objects 
+        self.functional = functional_factory(self.method, True, deriv=1)
+        self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
+        self.Vpot.initialize()
+        self.nblocks = self.Vpot.nblocks()
+
+        if self.nalpha != self.nbeta:
+            raise ValueError("RMolecule can't be used with that electronic configuration")
+            
+        D = psi4.core.Matrix(self.nbf,self.nbf)
+        self.Vpot.set_D([D])
+        self.Vpot.properties()[0].set_pointers(D)
+
+    def get_xc(self, Da, Db, Ca, Cb, 
+               get_ingredients, get_orbitals, vxc):
+        self.Vpot.set_D([Da])
+        self.Vpot.properties()[0].set_pointers(Da)
+        ks_e, Vxc, ingredients, orbitals, grid, potential = xc(Da, Ca, 
+                                              self.wfn, self.Vpot,
+                                              get_ingredients, get_orbitals, vxc)
+
+        return ks_e, Vxc, Vxc, ingredients, orbitals, grid, potential
 
 class UMolecule(Molecule):
     """
