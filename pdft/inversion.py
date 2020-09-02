@@ -3,17 +3,20 @@ from opt_einsum import contract
 import matplotlib.pyplot as plt
 import psi4
 
+import scipy.optimize as optimizer
+
 from .xc import u_xc
 # from .inv.wuyang
 # from .inv.oucarter
 
 class Inversion():
-    def __init__(self, fragments, molecule):
+    def __init__(self, fragments, molecule, target_wfn, **kwargs):
         
         #Basics
         self.frags    = fragments
         self.nfrag    = len(fragments)
         self.molecule = molecule
+        self.target   = target_wfn
         self.nbf      = self.molecule.nbf
         self.nblocks  = self.assert_grid_elements()
 
@@ -23,10 +26,12 @@ class Inversion():
         self.frag_db_nm = None
         self.frag_da_r  = None
         self.frag_db_r  = None
+        self.dd_a_mn    = None
+        self.dd_b_mn    = None
         self.frag_orbitals_r = None
-        self.get_frag_energies()
-        self.get_frag_densities_nm()
-        self.get_frag_densities_r()
+        #self.get_frag_energies()
+        #self.get_frag_densities_nm()
+        #self.get_frag_densities_r()
         
         #From inversion
         self.vp     = None
@@ -38,21 +43,21 @@ class Inversion():
         If so, asserts that grid points are same between molecules and fragments. 
         """
 
-        if len(self.molecule.ingredients["density"]["da"]) == 0:
-            raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
+        #if len(self.molecule.ingredients["density"]["da"]) == 0:
+        #    raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
 
-        if len(self.frags[0].ingredients["density"]["da"]) == 0:
-            raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
+        #if len(self.frags[0].ingredients["density"]["da"]) == 0:
+        #    raise ValueError("Density on the grid not avaliable for molecule. Please run scf with get_ingredients as True")
 
         #Checks that the number of points in each block for framgent is same wrt molecule
-        mol_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.molecule.Vpot)
-        fra_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.frags[0].Vpot)
+        #mol_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.molecule.Vpot)
+        #fra_points = psi4.driver.p4util.python_helpers._core_vbase_get_np_xyzw(self.frags[0].Vpot)
 
-        if len(mol_points[0]) != len(fra_points[0]):
-            raise ValueError("Grid of fragments does not match Grid of molecule. Verify nuclei charges or use shared Vpot")
+        #if len(mol_points[0]) != len(fra_points[0]):
+        #    raise ValueError("Grid of fragments does not match Grid of molecule. Verify nuclei charges or use shared Vpot")
 
-        else:
-            return self.molecule.Vpot.nblocks()
+        #else:
+        return self.frags[0].Vpot.nblocks()
 
     def get_vha_nad(self):
         """
@@ -132,8 +137,8 @@ class Inversion():
             return np.array(dd_a), np.array(dd_b), l1error
 
         if option == "matrix":
-            dd_a = self.molecule.Da.np - self.frag_da_nm.np
-            dd_b = self.molecule.Db.np - self.frag_db_nm.np
+            dd_a = self.target.Da().np - self.frag_da_nm.np
+            dd_b = self.target.Db().np - self.frag_db_nm.np
             return dd_a, dd_b
 
     def get_ep(self):
@@ -146,69 +151,22 @@ class Inversion():
         self.ep = ep
 
     def reintegrate_ao(self, function):
-
         f_nm = np.zeros((self.nbf, self.nbf))
-        points_func = self.molecule.Vpot.properties()[0]
+        points_func = self.frags[0].Vpot.properties()[0]
 
         for block in range(self.nblocks):
-            grid_block = self.molecule.Vpot.get_block(block)
+            grid_block = self.frags[0].Vpot.get_block(block)
             points_func.compute_points(grid_block)
             npoints = grid_block.npoints()
             lpos = np.array(grid_block.functions_local_to_global())
             w = np.array(grid_block.w())
             phi = np.array(points_func.basis_values()["PHI"])[:npoints, :lpos.shape[0]]
+            print(phi.shape)
+            print(function[block])
             vtmp = contract('pb,p,p,pa->ab', phi, function[block], w, phi)
             f_nm[(lpos[:, None], lpos)] += 0.5 * (vtmp + vtmp.T)
 
         return f_nm
-
-    def axis_plot(self, axis, matrices, grid, threshold=1e-8):
-        """
-
-        For a given matrix in AO basis set, plots the value for that matrix along a given axis. 
-
-        """    
-        y_arrays = []
-
-        for i, matrix in enumerate(matrices):
-
-            #matrix = matrix.np
-            #density_grid, grid = self.basis_to_grid(matrix, blocks=False)
-            density_grid = matrix
-
-            x = []
-            y = []
-    
-            if axis == "z":
-                for i in range(len(grid[0])):
-                    if np.abs(grid[0][i]) < threshold:
-                        if np.abs(grid[1][i]) < threshold:
-                            x.append((grid[2][i]))
-                            y.append(density_grid[i])
-
-            elif axis == "y":
-                for i in range(len(grid[0])):
-                    if np.abs(grid[0][i]) < threshold:
-                        if np.abs(grid[2][i]) < threshold:
-                            x.append((grid[1][i]))
-                            y.append(density_grid[i])
-
-            elif axis == "x":
-                for i in range(len(grid[0])):
-                    if np.abs(grid[1][i]) < threshold:
-                        if np.abs(grid[2][i]) < threshold:
-                            x.append((grid[0][i]))
-                            y.append(density_grid[i])
-
-
-            x = np.array(x)
-            y = np.array(y)
-            indx = x.argsort()
-            x = x[indx]
-            y = y[indx]
-            y_arrays.append(y)
-
-        return x, y_arrays
 
     # Inversion Procedures
 
@@ -232,33 +190,47 @@ class Inversion():
             vp_a_r += self.get_vxc_nad()
             vp_b_r = vp_a_r.copy()
 
-        else:
-            vp_a_r = np.zeros_like(self.get_vha_nad())
-            vp_a_r = np.zeros_like(self.get_vha_nad())
+        # elif guess == "fermiamaldi":
+            
 
-        vp_a = self.reintegrate_ao(vp_a_r)
-        vp_b = self.reintegrate_ao(vp_b_r)
-        vp_a = psi4.core.Matrix.from_array(vp_a)
-        vp_b = psi4.core.Matrix.from_array(vp_b)
+
+
+        else:
+            print("You have chosen no initial guess")
+            #vp_a_r = np.zeros_like(self.frags[0].ingredients["density"]["da"]) 
+            #vp_b_r = np.zeros_like(self.frags[0].ingredients["density"]["db"]) 
+            # vp_a_r = np.zeros_like(self.get_vha_nad())
+            # vp_a_r = np.zeros_like(self.get_vha_nad())
+
+        #vp_a = self.reintegrate_ao(vp_a_r)
+        #vp_b = self.reintegrate_ao(vp_b_r)
+        #vp_a = psi4.core.Matrix.from_array(vp_a)
+        #vp_b = psi4.core.Matrix.from_array(vp_b)
 
         l1_list = []
         ep_list = []
         for step in range(maxiter+1):
+            print(f"External scf cycle {step}")
             #Update fragment densities
             for frag in self.frags:
-                frag.scf(vp_mn=[vp_a, vp_b], get_ingredients=True, get_orbitals=True)
+                frag.scf(vxc=[vp_a, vp_b], get_ingredients=True)
 
             #Check convergence
             self.get_frag_energies()
-            self.get_frag_densities_r()
+            #self.get_frag_densities_r()
             self.get_frag_densities_nm()
             self.get_ep()
-            dd_a, dd_b, error = self.get_delta_density(option="grid")
-            dd_a_mn, dd_b_mn  = self.get_delta_density(option="matrix")
-            l1_list.append(error)
-            ep_list.append(self.ep)
+           
+            self.dd_a_mn, self.dd_b_mn  = self.get_delta_density(option="matrix")
+            #Grid dependant quantities
+            #dd_a, dd_b, error = self.get_delta_density(option="grid")
+            #l1_list.append(error)
+            #ep_list.append(self.ep)
+            #if print_scf is True:
+            #    print(F"vp scf cycle: {step} | Density Difference: {error:.5f} | Ep: {self.ep:.5f} | Ef: {self.frag_energy:.4f}")
+
             if print_scf is True:
-                print(F"vp scf cycle: {step} | Density Difference: {error:.5f} | Ep: {self.ep:.5f} | Ef: {self.frag_energy:.4f}")
+                print(F"scf outter cycle: {step} | Density Difference: {np.linalg.norm(self.dd_a_mn + self.dd_b_mn)}")
 
             #Choose inversion method
             if method == "zpm":
@@ -269,6 +241,8 @@ class Inversion():
                 dvp_a, dvp_b = self.vp_zc(dd_a_mn, dd_b_mn)
             elif method == "wy_r":
                 dvp_a, dvp_b = self.vp_wy_r(dd_a, dd_b)
+            elif method == "wy_nm":
+                dvp_a, dvp_b = self.wuyangscipy()
  
             #Update vp
             dvp_a = psi4.core.Matrix.from_array(dvp_a)
@@ -328,6 +302,184 @@ class Inversion():
 
             if step == maxiter:
                 raise Exception("Maximum number of SCF cycles exceeded for vp")
+
+
+    #Methods for Wu Yang Inversion
+    #Notes
+
+    def lagr_WuYang(self, v):
+
+        Vks_a = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[:self.nbf]) + self.initial_guess) 
+        Vks_b = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[self.nbf:]) + self.initial_guess)
+
+        self.frags[0].scf(  maxiter=0, 
+                            hamiltonian=["kinetic", "external", "xxxtra"], xfock_nm=[Vks_a, Vks_b],
+                            get_ingredients=True)
+
+        L = - self.frags[0].T.vector_dot(self.frags[0].Da) - self.frags[0].T.vector_dot(self.frags[0].Db)
+        L += - self.frags[0].V.vector_dot(self.frags[0].Da) - self.frags[0].V.vector_dot(self.frags[0].Db) 
+        L += - Vks_a.vector_dot(self.frags[0].Da) - Vks_b.vector_dot(self.frags[0].Db) 
+        L +=  self.frags[0].V.vector_dot(self.target.Da()) + self.frags[0].V.vector_dot(self.target.Db()) 
+        L +=  Vks_a.vector_dot(self.target.Da()) + Vks_b.vector_dot(self.target.Db()) 
+        
+        return L
+
+    def grad_WuYang(self, v):
+
+        Vks_a = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[:self.nbf]) + self.initial_guess) 
+        Vks_b = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[self.nbf:]) + self.initial_guess)
+
+        self.frags[0].scf(  maxiter=0, 
+                            hamiltonian=["kinetic", "external", "xxxtra"], xfock_nm=[Vks_a, Vks_b],
+                            get_ingredients=True)
+
+        dd_a_mn = self.target.Da().np - self.frags[0].Da.np
+        dd_b_mn = self.target.Db().np - self.frags[0].Db.np
+
+        grad_a = contract("uv,uvi->i", dd_a_mn, self.three_overlap)
+        grad_b = contract("uv,uvi->i", dd_b_mn, self.three_overlap)
+        grad = np.concatenate((grad_a, grad_b))
+
+        return grad
+    
+    def hess_WuYang(self, v):
+
+        Vks_a = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[:self.nbf]) + self.initial_guess)
+        Vks_b = psi4.core.Matrix.from_array(np.einsum("ijk,k->ij", self.three_overlap, v[self.nbf:]) + self.initial_guess)
+
+        self.frags[0].scf(  maxiter=0, #Solved non-self consistently
+                            hamiltonian=["kinetic", "external", "xxxtra"], xfock_nm=[Vks_a, Vks_b],
+                            get_ingredients=True)
+
+        epsilon_occ_a = self.frags[0].eigs_a.np[:self.frags[0].nalpha, None]
+        epsilon_occ_b = self.frags[0].eigs_b.np[:self.frags[0].nbeta, None]
+        epsilon_unocc_a = self.frags[0].eigs_a.np[self.frags[0].nalpha:]
+        epsilon_unocc_b = self.frags[0].eigs_b.np[self.frags[0].nbeta:]
+        epsilon_a = epsilon_occ_a - epsilon_unocc_a
+        epsilon_b = epsilon_occ_b - epsilon_unocc_b
+
+        hess = np.zeros((self.nbf*2, self.nbf*2))
+        # Alpha electrons
+        hess[0:self.nbf, 0:self.nbf] = - 1.0 * contract('ai,bj,ci,dj,ij,abm,cdn -> mn',
+                                                                                             self.frags[0].Ca.np[:, :self.frags[0].nalpha],
+                                                                                             self.frags[0].Ca.np[:, self.frags[0].nalpha:],
+                                                                                             self.frags[0].Ca.np[:, :self.frags[0].nalpha],
+                                                                                             self.frags[0].Ca.np[:, self.frags[0].nalpha:],
+                                                                                             np.reciprocal(epsilon_a), self.three_overlap,
+                                                                                             self.three_overlap)
+        # Beta electrons
+        hess[self.nbf:, self.nbf:] = - 1.0 * contract('ai,bj,ci,dj,ij,abm,cdn -> mn',
+                                                                                           self.frags[0].Cb.np[:, :self.frags[0].nbeta],
+                                                                                           self.frags[0].Cb.np[:, self.frags[0].nbeta:],
+                                                                                           self.frags[0].Cb.np[:, :self.frags[0].nbeta],
+                                                                                           self.frags[0].Cb.np[:, self.frags[0].nbeta:],
+                                                                                           np.reciprocal(epsilon_b),self.three_overlap,
+                                                                                           self.three_overlap)
+        hess = (hess + hess.T)
+
+        return hess
+    
+    def wuyang(self, guess,
+                          opt_method="trust-krylov",
+                          #opt_method="BFGS" 
+                          ):
+
+        self.three_overlap = np.squeeze(self.molecule.mints.ao_3coverlap(self.frags[0].wfn.basisset(),
+                                                                         self.frags[0].wfn.basisset(),
+                                                                         self.frags[0].wfn.basisset()))        
+
+        if guess == "fermiamaldi":
+            print("Initial Guess: Fermi Amaldi")
+            #Molecule is assumed to be the same as target one, i.e. occupied orbitals are the same
+            wfn = self.target
+            nocc =  wfn.nalpha() + wfn.nbeta()
+            Ca = wfn.Ca().np.copy()
+            Cb = wfn.Cb().np.copy()
+            Cocca = psi4.core.Matrix.from_array(Ca[:,:wfn.nalpha()])
+            Coccb = psi4.core.Matrix.from_array(Cb[:,:wfn.nbeta()])
+
+            self.frags[0].scf(maxiter=0)
+            self.frags[0].jk.C_left_add(Cocca)
+            self.frags[0].jk.C_left_add(Coccb)
+            self.frags[0].jk.compute()
+            self.frags[0].jk.C_clear()
+            self.initial_guess = (nocc-1)/nocc*(self.frags[0].jk.J()[0].np + self.frags[0].jk.J()[1].np)
+            self.initial_guess = psi4.core.Matrix.from_array(self.initial_guess)
+            self.frags[0].scf(  maxiter=0,
+                                hamiltonian=["kinetic", "external", "xxxtra"], 
+                                xfock_nm=[self.initial_guess, self.initial_guess],
+                                get_ingredients=True)
+
+        # dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
+        # ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
+        # print("\n |n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
+
+        v0 = np.zeros(int(self.nbf)*2)
+
+        vp_array = optimizer.minimize(fun=self.lagr_WuYang, 
+                                      x0=v0,
+                                      jac=self.grad_WuYang,
+                                      hess=self.hess_WuYang,
+                                      method=opt_method,
+                                      options={'disp': False},
+                                      tol=None
+                                      )
+
+        Vks_a = contract("ijk,k->ij", self.three_overlap, vp_array.x[:self.nbf]) + self.initial_guess 
+        Vks_b = contract("ijk,k->ij", self.three_overlap, vp_array.x[self.nbf:]) + self.initial_guess 
+        Vks_a = psi4.core.Matrix.from_array(Vks_a)
+        Vks_b = psi4.core.Matrix.from_array(Vks_b)
+
+        self.frags[0].scf(  maxiter=0,
+                            hamiltonian=["kinetic", "external", "xxxtra"], xfock_nm=[Vks_a, Vks_b],
+                            get_ingredients=True, get_orbitals=True)    
+        
+        _, _, _, _, _, _, potential = u_xc( self.target.Da(), self.target.Db(), 
+                                            self.target.Ca(), self.target.Cb(), 
+                                            self.target, self.frags[0].Vpot,
+                                            ingredients=True, 
+                                            orbitals=False, 
+                                            vxc=None)
+
+        target_hartree =              potential["vha"].copy()
+        input_hartree = self.frags[0].potential["vha"].copy()
+
+        target_hartree_2 = potential["esp"].copy()
+        input_hartree_2 = self.frags[0].potential["esp"].copy()
+
+        # vext_tilde = self.get_vext_tilde()
+        # target_hartree_2 -= vext_tilde
+        # input_hartree_2 -= vext_tilde     
+
+        # self.vext_tilde = vext_tilde  
+        # self.t_2 = target_hartree_2
+        # self.i_2 = input_hartree_2
+
+        # self.t_hartree= target_hartree
+        # self.i_hartree = input_hartree
+
+        # dda_grid, _ = self.frags[0].basis_to_grid(self.frags[0].Da - self.target.Da().np, blocks=True)
+        # ddb_grid, w = self.frags[0].basis_to_grid(self.frags[0].Db - self.target.Db().np, blocks=True)
+        # print("|n-n0|", np.linalg.norm(np.abs(dda_grid + ddb_grid) * w))
+
+        nocc = self.frags[0].nalpha + self.frags[0].nbeta
+        vxc_a, _ = self.frags[0].basis_to_grid(vp_array.x[:self.nbf], blocks=True)
+        vxc_b, _ = self.frags[0].basis_to_grid(vp_array.x[self.nbf:], blocks=True)
+        vxc_a += (nocc -1)/nocc*target_hartree - input_hartree
+        vxc_b += (nocc -1)/nocc*target_hartree - input_hartree
+        self.vxc_a = vxc_a.copy()
+        self.vxc_b = vxc_b.copy()
+
+
+        return
+
+
+
+
+
+
+
+    #Other experimental Inversion methods
 
     def vp_wy_r(self, dd_a, dd_b):
         """ 
@@ -457,6 +609,12 @@ class Inversion():
         density = self.molecule.ingredients["density"]["da"] + self.molecule.ingredients["density"]["db"]
         vha     = self.molecule.potential["vha"]
         vxc     = self.molecule.potential["vxc_a"]
+
+        print(e_ks.shape)
+        print(tau.shape)
+        print(density.shape)
+        print(vha.shape)
+        print(vxc.shape)
 
         vext_tilde = e_ks - tau/density - vha - vxc
 
