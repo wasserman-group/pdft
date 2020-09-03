@@ -40,9 +40,10 @@ def hydrogen():
 def test_LDA_energy_restricted(he_dimer):
 
     psi4.core.clean()
+    psi4.core.be_quiet()
 
     psi4.set_options({
-                  "DFT_SPHERICAL_POINTS" : 26,
+                  "DFT_SPHERICAL_POINTS" : 6,
                   "DFT_RADIAL_POINTS":     12,})
 
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=he_dimer)
@@ -55,9 +56,10 @@ def test_LDA_energy_restricted(he_dimer):
 def test_LDA_unrestricted_two_shells(he_dimer):
 
     psi4.core.clean()
+    psi4.core.be_quiet()
 
     psi4.set_options({
-                "DFT_SPHERICAL_POINTS" : 26,
+                "DFT_SPHERICAL_POINTS" : 6,
                 "DFT_RADIAL_POINTS":     12,})
 
     psi4.set_options({"reference" : "uks"})
@@ -71,20 +73,109 @@ def test_LDA_unrestricted_two_shells(he_dimer):
 def test_LDA_unrestricted_one_shell(hydrogen):
 
     psi4.core.clean()
+    psi4.core.be_quiet()
 
     psi4.set_options({
-            "DFT_SPHERICAL_POINTS" : 26,
+            "DFT_SPHERICAL_POINTS" : 6,
             "DFT_RADIAL_POINTS":     12,})
 
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("SVWN/cc-pVDZ", molecule=hydrogen)
-    helium = pdft.UMolecule(hydrogen, "cc-pVDZ", "SVWN")
-    helium.scf()
-    pdft_energy = helium.energy
+    h = pdft.UMolecule(hydrogen, "cc-pVDZ", "SVWN")
+    h.scf()
+    pdft_energy = h.energy
 
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-4)
 
 
+def test_GGA_unrestricted_one_shell(hydrogen):
+
+    psi4.core.clean()
+    psi4.core.be_quiet()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 6,
+            "DFT_RADIAL_POINTS":     12,})
+
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("pbe/cc-pVDZ", molecule=hydrogen)
+    h = pdft.UMolecule(hydrogen, "cc-pvdz", "pbe")
+    h.scf()
+
+    pdft_energy = h.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)    
+
+def test_GGA_unrestricted_two_shelss(he_dimer):
+
+    psi4.core.clean()
+    psi4.core.be_quiet()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 6,
+            "DFT_RADIAL_POINTS":     12,})
+
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("pbe/cc-pVDZ", molecule=he_dimer)
+    h = pdft.UMolecule(he_dimer, "cc-pvdz", "pbe")
+    h.scf()
+
+    pdft_energy = h.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)  
+  
+def test_GGA_unrestricted_two_shells(he_dimer):
+
+    psi4.core.clean()
+    psi4.core.be_quiet()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 6,
+            "DFT_RADIAL_POINTS":     12,})
+
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("pbe/cc-pVDZ", molecule=he_dimer)
+    h = pdft.RMolecule(he_dimer, "cc-pvdz", "pbe")
+    h.scf()
+
+    pdft_energy = h.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)  
+
+def test_META_unrestricted_two_shells(he_dimer):
+
+    psi4.core.clean()
+    psi4.core.be_quiet()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 6,
+            "DFT_RADIAL_POINTS":     12,})
+
+    psi4.set_options({"reference" : "rks"})
+    psi4_energy = psi4.energy("M05/cc-pVDZ", molecule=he_dimer)
+    h = pdft.RMolecule(he_dimer, "cc-pvdz", "M05")
+    h.scf()
+
+    pdft_energy = h.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)  
 
 
+def test_META_unrestricted_one_shell(he_dimer):
 
+    psi4.core.clean()
+    psi4.core.be_quiet()
+
+    psi4.set_options({
+            "DFT_SPHERICAL_POINTS" : 74,
+            "DFT_RADIAL_POINTS":    70 ,
+            "MAXITER" : 500})
+
+    psi4.set_options({"reference" : "uks"})
+    psi4_energy = psi4.energy("tpss/cc-pvtz", molecule=he_dimer)
+    dimer = pdft.UMolecule(he_dimer, "cc-pvtz", "tpss")
+    dimer.scf()
+
+    pdft_energy = h.energy
+
+    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)    
