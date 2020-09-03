@@ -161,20 +161,20 @@ def test_META_unrestricted_two_shells(he_dimer):
     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)  
 
 
-def test_META_unrestricted_one_shell(he_dimer):
+# def test_META_unrestricted_one_shell(he_dimer):
 
-    psi4.core.clean()
-    psi4.core.be_quiet()
+#     psi4.core.clean()
+#     psi4.core.be_quiet()
 
-    psi4.set_options({
-            "DFT_SPHERICAL_POINTS" : 6,
-            "DFT_RADIAL_POINTS":    12 ,})
+#     psi4.set_options({
+#             "DFT_SPHERICAL_POINTS" : 6,
+#             "DFT_RADIAL_POINTS":    12 ,})
 
-    psi4.set_options({"reference" : "uks"})
-    psi4_energy = psi4.energy("tpss/cc-pvtz", molecule=he_dimer)
-    dimer = pdft.UMolecule(he_dimer, "cc-pvtz", "tpss")
-    dimer.scf()
+#     psi4.set_options({"reference" : "uks"})
+#     psi4_energy = psi4.energy("tpss/cc-pvtz", molecule=he_dimer)
+#     dimer = pdft.UMolecule(he_dimer, "cc-pvtz", "tpss")
+#     dimer.scf()
 
-    pdft_energy = h.energy
+#     pdft_energy = h.energy
 
-    assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)    
+#     assert np.isclose(psi4_energy, pdft_energy, rtol=1e-2)    
