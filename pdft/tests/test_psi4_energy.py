@@ -167,9 +167,8 @@ def test_META_unrestricted_one_shell(he_dimer):
     psi4.core.be_quiet()
 
     psi4.set_options({
-            "DFT_SPHERICAL_POINTS" : 74,
-            "DFT_RADIAL_POINTS":    70 ,
-            "MAXITER" : 500})
+            "DFT_SPHERICAL_POINTS" : 6,
+            "DFT_RADIAL_POINTS":    12 ,})
 
     psi4.set_options({"reference" : "uks"})
     psi4_energy = psi4.energy("tpss/cc-pvtz", molecule=he_dimer)
