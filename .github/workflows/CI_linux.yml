@@ -9,11 +9,11 @@ jobs:
     strategy:
       matrix:
         cfg:
-        - conda-env: base_6
+        - conda-env: test_env
           python-version: 3.6
         - conda-env: test_env
           python-version: 3.7
-        - conda-env: base_8
+        - conda-env: test_env
           python-version: 3.8
 
     env: 
