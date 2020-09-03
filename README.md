@@ -5,6 +5,8 @@ Partition Density Functional Theory: A density functional toolbox oriented to fr
 
 
 [//]: # (Badges)
+[![Build Status](https://github.com/wasserman-group/pdft/workflows/CI/badge.svg)](https://github.com/wasserman-group/pdft/actions)
+
 [![Build Status](https://travis-ci.com/vhchavez/pdft.svg?token=qfJoUsJ2RErCUYXqxfAQ&branch=master)](https://travis-ci.com/vhchavez/pdft)
 [![codecov](https://codecov.io/gh/vhchavez/pdft/branch/master/graph/badge.svg?token=83bevc0aMc)](https://codecov.io/gh/vhchavez/pdft)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/VHchavez/pdft.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/VHchavez/pdft/context:python)
