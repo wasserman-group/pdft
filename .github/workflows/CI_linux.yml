@@ -13,8 +13,8 @@ jobs:
           python-version: 3.6
         - conda-env: test_env
           python-version: 3.7
-        - conda-env: test_env
-          python-version: 3.8
+        # - conda-env: test_env
+        #   python-version: 3.8
 
     env: 
       PYVER: ${{ matrix.cfg.python-version }}
