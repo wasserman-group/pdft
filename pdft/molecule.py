@@ -159,7 +159,6 @@ class Molecule():
         vp: psi4.core.Matrix
             Vp_matrix to be added to KS matrix
         """
-
         # At the beginning, check if the given vp is the same as vp of last SCF.
         if vp_Fock_updown is not None and \
                 (self.vp_a is not None and self.vp_b is not None):
@@ -172,10 +171,12 @@ class Molecule():
             else:
                 self.vp_a = vp_Fock_updown[0]
                 self.vp_b = vp_Fock_updown[1]
+        else:
+            self.vp_a = vp_Fock_updown[0]
+            self.vp_b = vp_Fock_updown[1]
 
         # Restricted/Unrestricted
         # Initial Guess.
-
         if self.Da is None and self.Db is None:
             Ca, Cocca, Da, eigs_a = self.build_orbitals(self.H, self.nalpha)
             # Set to X_b = X_a if restricted == True without depending on child class.
@@ -184,6 +185,7 @@ class Molecule():
         if self.Da is not None and self.Da is not None:
             Ca, Cocca, Da, eigs_a = self.Ca, self.Cocca, self.Da, self.eigs_a
             Cb, Coccb, Db, eigs_b = self.Cb, self.Coccb, self.Db, self.eigs_b
+
 
 
         if diis is True:
@@ -197,7 +199,7 @@ class Molecule():
         E_conv = psi4.core.get_option("SCF", "E_CONVERGENCE")
         D_conv = psi4.core.get_option("SCF", "D_CONVERGENCE")
 
-        for SCF_ITER in range(maxiter + 1):
+        for SCF_ITER in range(1, maxiter + 1):
             self.jk.C_left_add(Cocca)
             self.jk.C_left_add(Coccb)
             self.jk.compute()
@@ -213,7 +215,6 @@ class Molecule():
                 self.vks_a = psi4.core.Matrix(self.nbf, self.nbf)
                 self.vks_b = psi4.core.Matrix(self.nbf, self.nbf)
 
-
             Fa = psi4.core.Matrix(self.nbf, self.nbf)
             Fb = psi4.core.Matrix(self.nbf, self.nbf)
 
@@ -228,7 +229,6 @@ class Molecule():
             if "hartree" in hamiltonian:
                 Fa.axpy(1.0, self.jk.J()[0])
                 Fa.axpy(1.0, self.jk.J()[1])
-
                 Fb.axpy(1.0, self.jk.J()[0])
                 Fb.axpy(1.0, self.jk.J()[1])
 
@@ -288,7 +288,6 @@ class Molecule():
 
             # DIIS
             if diis:
-
                 diisa_e = psi4.core.triplet(Fa, Da, self.S, False, False, False)
                 diisa_e.subtract(psi4.core.triplet(self.S, Da, Fa, False, False, False))
                 diisa_e = psi4.core.triplet(self.A, diisa_e, self.A, False, False, False)
@@ -302,7 +301,7 @@ class Molecule():
                 dRMSa = diisa_e.rms()
                 dRMSb = diisb_e.rms()
 
-                dRMS = 0.5 * (np.mean(diisa_e.np**2)**0.5 + np.mean(diisb_e.np**2)**0.5)
+                dRMS = 0.5 * (np.mean(diisa_e.np ** 2) ** 0.5 + np.mean(diisb_e.np ** 2) ** 0.5)
 
                 Fa = diisa_obj.extrapolate()
                 Fb = diisb_obj.extrapolate()
@@ -345,10 +344,12 @@ class Molecule():
                     + energy_partition + energy_ks + energy_exchange_a + energy_exchange_b + \
                     energy_nuclear
 
-            # print("Iter", SCF_ITER, "Energy", SCF_E, "dE", abs(SCF_E - Eold), "dRMS", dRMS)
 
             if diis:
                 if (abs(SCF_E - Eold) < E_conv and dRMS < D_conv):
+                    # print("Iter", SCF_ITER, "Energy", SCF_E, "dE", abs(SCF_E - Eold), "dRMS", dRMS)
+                    # print("Ts", energy_kinetic, "Eext", energy_external, "Eh", energy_hartree_a + energy_hartree_b,
+                    #       "Exc", energy_ks)
                     break
             else:
                 if abs(SCF_E - Eold) < E_conv:
@@ -382,40 +383,7 @@ class Molecule():
         # self.vks_a, self.vks_b    =
         self.Cocca, self.Coccb = Cocca, Coccb
         self.eigs_a, self.eigs_b = eigs_a, eigs_b
-        #Stores everything in wfn object
-        # self.set_wfn()
-        
-class RMolecule(Molecule):
 
-    def __init__(self, geometry, basis, method, 
-                 mints=None, jk=None, vpot = None,
-                 ):
-        super().__init__(geometry, basis, method, 
-                         mints, jk, vpot,
-                         )
-
-        #Psi4 objects 
-        self.functional = functional_factory(self.method, True, deriv=1)
-        self.Vpot       = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "RV")
-        self.Vpot.initialize()
-        self.nblocks = self.Vpot.nblocks()
-
-        if self.nalpha != self.nbeta:
-            raise ValueError("RMolecule can't be used with that electronic configuration")
-            
-        D = psi4.core.Matrix(self.nbf,self.nbf)
-        self.Vpot.set_D([D])
-        self.Vpot.properties()[0].set_pointers(D)
-
-    def get_xc(self, Da, Db, Ca, Cb, 
-               get_ingredients, get_orbitals, vxc):
-        self.Vpot.set_D([Da])
-        self.Vpot.properties()[0].set_pointers(Da)
-        ks_e, Vxc, ingredients, orbitals, grid, potential = xc(Da, Ca, 
-                                              self.wfn, self.Vpot,
-                                              get_ingredients, get_orbitals, vxc)
-
-        return ks_e, Vxc, Vxc, ingredients, orbitals, grid, potential
 
 class UMolecule(Molecule):
     """
@@ -432,7 +400,8 @@ class UMolecule(Molecule):
                          )
 
         self.restricted = False
-        self.functional = functional_factory(self.method, False, deriv=1)
+        npoint_block = psi4.core.get_option("SCF", "DFT_BLOCK_MAX_POINTS")
+        self.functional = functional_factory(self.method, False, deriv=1, points=npoint_block)
 
         self.Vpot = vpot if vpot is not None else psi4.core.VBase.build(self.wfn.basisset(), self.functional, "UV")
         self.Vpot.initialize()
