@@ -171,9 +171,12 @@ class Molecule():
             else:
                 self.vp_a = vp_Fock_updown[0]
                 self.vp_b = vp_Fock_updown[1]
-        else:
+        elif vp_Fock_updown is not None:
             self.vp_a = vp_Fock_updown[0]
             self.vp_b = vp_Fock_updown[1]
+        elif vp_Fock_updown is None:
+            self.vp_a = None
+            self.vp_b = None
 
         # Restricted/Unrestricted
         # Initial Guess.
@@ -185,8 +188,6 @@ class Molecule():
         if self.Da is not None and self.Da is not None:
             Ca, Cocca, Da, eigs_a = self.Ca, self.Cocca, self.Da, self.eigs_a
             Cb, Coccb, Db, eigs_b = self.Cb, self.Coccb, self.Db, self.eigs_b
-
-
 
         if diis is True:
             diisa_obj = psi4.p4util.solvers.DIIS(max_vec=3, removal_policy="largest")
